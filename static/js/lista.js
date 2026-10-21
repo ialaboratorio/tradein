@@ -15,12 +15,26 @@
     results.innerHTML = "";
   }
 
+  function searchLabel(item) {
+    const parts = [item.name];
+    if (item.set_label) parts.push(item.set_label);
+    parts.push("LOW " + (item.low != null ? item.low.toFixed(2) + " €" : "—"));
+    if (item.low_foil != null) parts.push("Foil " + item.low_foil.toFixed(2) + " €");
+    parts.push("ref " + item.id_product);
+    return parts.join(" · ");
+  }
+
   function selectCard(item) {
     productInput.value = item.id_product;
-    const price = item.has_price
-      ? (item.low != null ? item.low.toFixed(2) + " €" : "solo foil")
-      : "sin precio";
-    selected.textContent = item.name + " · LOW " + price;
+    const parts = [item.name];
+    if (item.set_label) parts.push(item.set_label);
+    if (item.low != null) parts.push("LOW " + item.low.toFixed(2) + " €");
+    else if (item.low_foil != null) parts.push("LOW foil " + item.low_foil.toFixed(2) + " €");
+    else parts.push("sin precio");
+    if (item.low != null && item.low_foil != null)
+      parts.push("Foil " + item.low_foil.toFixed(2) + " €");
+    parts.push("ref " + item.id_product);
+    selected.textContent = parts.join(" · ");
     selected.classList.remove("muted");
     search.value = "";
     hide();
@@ -49,8 +63,7 @@
         data.forEach(function (item) {
           const div = document.createElement("div");
           div.className = "search-item";
-          const priceLabel = item.low != null ? item.low.toFixed(2) + " €" : "—";
-          div.textContent = item.name + " · LOW " + priceLabel;
+          div.textContent = searchLabel(item);
           div.addEventListener("click", function () {
             selectCard(item);
           });

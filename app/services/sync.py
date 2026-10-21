@@ -8,21 +8,24 @@ import httpx
 from app.config import settings
 from app.db import SessionLocal
 from app.models import CardPrice, SyncRun, utcnow
-from app.services import cardmarket
+from app.services import cardmarket, expansions
 from sqlalchemy import func, select
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger("tradein.sync")
 
 TZ = ZoneInfo(settings.sync_timezone)
 
 
-def run_full_sync() -> list[dict]:
+def run_full_sync(game_ids: list[int] | None = None) -> list[dict]:
+    games = settings.game_ids() if game_ids is None else game_ids
     results: list[dict] = []
     with httpx.Client(follow_redirects=True, headers={"User-Agent": "tradein/1.0"}) as client:
         with SessionLocal() as db:
-            for game_id in settings.game_ids():
+            for game_id in games:
                 jobs = (
                     ("catalog", cardmarket.sync_game_catalog),
+                    ("expansions", expansions.sync_game_expansions),
                     ("prices", cardmarket.sync_game_prices),
                 )
                 for kind, fn in jobs:
@@ -31,6 +34,7 @@ def run_full_sync() -> list[dict]:
                         message = f"{count} registros"
                         ok = True
                     except Exception as exc:
+                        db.rollback()
                         message = str(exc)[:500]
                         ok = False
                         logger.error("sync game=%s kind=%s failed: %s", game_id, kind, exc)
@@ -40,17 +44,28 @@ def run_full_sync() -> list[dict]:
     return results
 
 
-def needs_sync() -> bool:
+def stale_game_ids(db: Session | None = None) -> list[int]:
+    own_session = db is None
+    if own_session:
+        db = SessionLocal()
     try:
-        with SessionLocal() as db:
-            latest = db.scalar(select(func.max(CardPrice.fetched_at)))
+        rows = db.execute(
+            select(CardPrice.game_id, func.max(CardPrice.fetched_at)).group_by(CardPrice.game_id)
+        ).all()
     except Exception as exc:
-        logger.warning("needs_sync check failed: %s", exc)
-        return False
-    if latest is None:
-        return True
+        logger.warning("stale games check failed: %s", exc)
+        return []
+    finally:
+        if own_session:
+            db.close()
+    latest = {game_id: fetched_at for game_id, fetched_at in rows}
     ttl = timedelta(hours=settings.price_cache_ttl_hours)
-    return utcnow() - latest > ttl
+    now = utcnow()
+    return [
+        game_id
+        for game_id in settings.game_ids()
+        if latest.get(game_id) is None or now - latest[game_id] > ttl
+    ]
 
 
 def _seconds_until(sync_time: str) -> float:
@@ -75,9 +90,10 @@ async def scheduler_loop():
 
 async def initial_sync_if_stale():
     try:
-        if await asyncio.to_thread(needs_sync):
-            logger.info("starting initial Cardmarket sync")
-            await asyncio.to_thread(run_full_sync)
+        stale = await asyncio.to_thread(stale_game_ids)
+        if stale:
+            logger.info("starting initial Cardmarket sync for games %s", stale)
+            await asyncio.to_thread(run_full_sync, stale)
     except Exception:
         logger.exception("initial sync failed")
 

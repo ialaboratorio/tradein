@@ -13,6 +13,7 @@ El dueño de la tienda valida cada lista desde su panel cuando recibe las cartas
 - **Listas por TCG**: cada lista se crea para un juego concreto (Magic, Pokémon, Yu-Gi-Oh!, One Piece, Lorcana o Riftbound); la búsqueda de cartas se filtra automáticamente por ese juego.
 - **Panel de administración**: listas enviadas, detalle con precios, validación, rechazo con nota, ajuste por línea (override + motivo) y registro de pago (efectivo/tienda).
 - **Catálogo local de Cardmarket**: la app descarga a diario los ficheros oficiales gratuitos de [Cardmarket Downloads](https://downloads.s3.cardmarket.com/) para buscar cartas por nombre y conocer su precio `LOW` (oferta activa más barata).
+- **Elección de impresión**: la búsqueda muestra cada expansión/arte de la carta con su propio precio (`LOW` y `LOW foil`) y su referencia, de modo que el usuario elige exactamente la impresión que vende.
 - **Listas por fases**: borrador → enviada → validada/rechazada → pagada, con auditoría de cada cambio.
 - **Snapshot de precios**: cada línea guarda el precio y la fecha en que se calculó; si al validar varía más de un umbral configurable, la línea se marca para revisión.
 - **Estado y idioma**: todas las cartas se valoran como **NM** (casi perfecta). Cada línea permite elegir **foil** (usa `low-foil`) e **idioma** (español o inglés, informativo para la tienda).
@@ -72,6 +73,9 @@ pip install -r requirements.txt
 # Configurar variables de entorno
 cp .env.example .env
 
+# Aplicar migraciones de la base de datos
+python -m alembic upgrade head
+
 # Arrancar
 uvicorn app.main:app --reload --port 8000
 ```
@@ -98,22 +102,26 @@ app/
 ├── db.py            # SQLAlchemy 2 + SQLite WAL
 ├── models.py        # Usuarios, catálogo, precios, listas, eventos
 ├── routers/         # auth, cards (búsqueda), lists, admin
-├── services/        # cardmarket (S3), sync (scheduler), pricing (coeficientes)
+├── services/        # cardmarket (S3), expansions (nombres de set), sync (scheduler), pricing
 └── templates/       # Jinja2
-alembic/             # Migraciones (0001 users, 0002 catálogo, 0003 listas)
-tests/               # pytest (22 tests)
+alembic/             # Migraciones (0001 users ... 0005 expansiones)
+tests/               # pytest (30 tests)
 ```
 
 ## Sincronización de precios
 
-- Automática: al arrancar (si los datos tienen más de 24 h) y cada día a las 03:30 CET.
-- Manual: `python -m app.services.sync` (descarga catálogo + precios de los juegos en `SUPPORTED_GAMES`).
+- Automática: al arrancar (solo se sincronizan los juegos con datos caducados) y cada día a las 03:30 CET.
+- Manual: `python -m app.services.sync` (catálogo + expansiones + precios de los juegos en `SUPPORTED_GAMES`).
 - Estado de las últimas sincronizaciones: panel **Admin**.
 
-## Notas sobre los precios
+## Notas sobre los precios y las expansiones
 
-- Fuente: ficheros oficiales y gratuitos de Cardmarket (`price_guide` y `products_singles`), actualizados una vez al día (~02:45 CET). La app sincroniza a las 03:30.
+- Fuente de precios: ficheros oficiales y gratuitos de Cardmarket (`price_guide` y `products_singles`), actualizados una vez al día (~02:45 CET). La app sincroniza a las 03:30.
 - El campo `LOW` es la oferta activa más barata (mezcla idiomas y condiciones); el precio final de compra lo decide la tienda al validar en persona.
+- Cada **impresión** (expansión/arte/variante) es un producto distinto en Cardmarket y tiene su propio `LOW`: por eso la búsqueda permite elegir la impresión con su precio.
+- **Nombres de expansión**: Cardmarket no publica un listado de expansiones, así que los nombres se derivan de los ficheros oficiales `products_nonsingles` (productos tipo *booster* de cada set); en Magic se completa con [MTGJSON](https://mtgjson.com). Las expansiones sin nombre disponible se muestran como `Set #id` (cobertura actual de cartas con nombre: MTG 68%, Yu-Gi-Oh! 80%, Pokémon 72%, One Piece 86%, Lorcana 94%, Riftbound 97%).
+- **Límite del idioma**: Cardmarket no publica precios por idioma dentro de una misma impresión (solo existe LOW por producto); para esos casos la tienda puede ajustar el precio manualmente desde el panel de administración.
+- Este proyecto **no hace scraping** de cardmarket.com (prohibido por sus términos y bloqueado técnicamente), ni usa su API oficial (cerrada a nuevas aplicaciones). Solo descarga los ficheros públicos de `downloads.s3.cardmarket.com`.
 - **Atribución**: "Precios: Cardmarket". Este proyecto no está afiliado a Cardmarket.
 
 ## Roadmap
@@ -124,3 +132,4 @@ tests/               # pytest (22 tests)
 - [x] Fase 4: listas de venta con coeficientes
 - [x] Fase 5: panel de administración
 - [x] Fase 6: tests y despliegue
+- [x] Fase 7: elección de impresión/expansión con precios por juego y sync completo de los 6 TCG

@@ -15,7 +15,7 @@ from app.models import (
     utcnow,
 )
 from app.security import get_optional_user
-from app.services import pricing
+from app.services import expansions, pricing
 
 router = APIRouter(tags=["lists"])
 
@@ -39,7 +39,9 @@ def _touch(trade_list: TradeList) -> None:
     trade_list.updated_at = utcnow()
 
 
-def enrich_lines(lines: list[TradeLine]) -> list[dict]:
+def enrich_lines(db: Session, lines: list[TradeLine]) -> list[dict]:
+    pairs = {(line.game_id, line.id_expansion) for line in lines if line.id_expansion is not None}
+    names = expansions.expansion_names(db, pairs)
     enriched = []
     for line in lines:
         amounts = pricing.line_amounts(line)
@@ -48,6 +50,7 @@ def enrich_lines(lines: list[TradeLine]) -> list[dict]:
                 "line": line,
                 "condition_label": "NM",
                 "language_label": LANGUAGES.get(line.language, line.language),
+                "expansion_label": expansions.set_label(names, line.game_id, line.id_expansion),
                 **amounts,
             }
         )
@@ -114,7 +117,7 @@ def list_detail(
             "request": request,
             "user": user,
             "trade_list": trade_list,
-            "rows": enrich_lines(lines),
+            "rows": enrich_lines(db, lines),
             "totals": totals,
             "game_names": GAME_NAMES,
         },

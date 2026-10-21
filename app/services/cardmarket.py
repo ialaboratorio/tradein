@@ -52,13 +52,23 @@ def sync_game_catalog(client: httpx.Client, db: Session, game_id: int) -> int:
             continue
         name = item.get("name") or ""
         id_expansion = _i(item.get("idExpansion"))
+        category_name = str(item.get("categoryName") or "")[:128] or None
         card = existing.get(id_product)
         if card is None:
-            db.add(Card(game_id=game_id, id_product=id_product, name=name, id_expansion=id_expansion))
+            db.add(
+                Card(
+                    game_id=game_id,
+                    id_product=id_product,
+                    name=name,
+                    id_expansion=id_expansion,
+                    category_name=category_name,
+                )
+            )
             added += 1
         else:
             card.name = name
             card.id_expansion = id_expansion
+            card.category_name = category_name
     db.commit()
     return added
 

@@ -62,6 +62,18 @@ class Card(Base):
     id_product: Mapped[int] = mapped_column(Integer)
     name: Mapped[str] = mapped_column(String(512), index=True)
     id_expansion: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    category_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+
+
+class Expansion(Base):
+    __tablename__ = "expansions"
+    __table_args__ = (PrimaryKeyConstraint("game_id", "id_expansion"),)
+
+    game_id: Mapped[int] = mapped_column(Integer)
+    id_expansion: Mapped[int] = mapped_column(Integer)
+    name: Mapped[str] = mapped_column(String(255))
+    source: Mapped[str] = mapped_column(String(32), default="nonsingles")
+    fetched_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
 class CardPrice(Base):

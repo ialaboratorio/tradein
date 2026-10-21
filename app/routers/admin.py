@@ -84,7 +84,7 @@ def admin_list_detail(
             "user": user,
             "trade_list": trade_list,
             "owner": owner,
-            "rows": enrich_lines(lines),
+            "rows": enrich_lines(db, lines),
             "totals": totals,
             "events": sorted(trade_list.events, key=lambda event: event.id, reverse=True),
             "payment_labels": PAYMENT_LABELS,

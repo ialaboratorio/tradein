@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models import GAME_NAMES, Card, CardPrice
+from app.services.expansions import expansion_names, set_label
 
 router = APIRouter(prefix="/api/cards", tags=["cards"])
 
@@ -27,12 +28,15 @@ def search_cards(
             isouter=True,
         )
         .where(Card.name.ilike(pattern, escape="\\"))
-        .order_by(Card.name)
+        .order_by(Card.name, Card.id_product)
         .limit(25)
     )
     if game is not None:
         stmt = stmt.where(Card.game_id == game)
     rows = db.execute(stmt).all()
+    names = expansion_names(
+        db, {(card.game_id, card.id_expansion) for card, _ in rows if card.id_expansion is not None}
+    )
     return [
         {
             "game_id": card.game_id,
@@ -40,6 +44,9 @@ def search_cards(
             "id_product": card.id_product,
             "name": card.name,
             "id_expansion": card.id_expansion,
+            "expansion_name": names.get((card.game_id, card.id_expansion)),
+            "set_label": set_label(names, card.game_id, card.id_expansion),
+            "category_name": card.category_name,
             "low": price.low if price else None,
             "low_foil": price.low_foil if price else None,
             "has_price": bool(price and (price.low is not None or price.low_foil is not None)),

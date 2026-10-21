@@ -58,7 +58,7 @@
       <th>Cant.</th>
       <th>Idioma</th>
       <th>Foil</th>
-      <th>LOW</th>
+      <th>LOW (mercado)</th>
       <th>Efect./u</th>
       <th>Tienda/u</th>
       <th>Total efect.</th>
@@ -71,6 +71,7 @@
     <tr {% if row.line.price_alert %}class="row-alert"{% endif %}>
       <td>
         {{ row.line.card_name }}
+        {% if row.expansion_label %}<div class="muted">{{ row.expansion_label }}</div>{% endif %}
         {% if row.line.price_alert %}<span class="badge badge-alert" title="El precio ha variado bastante desde que se añadió">⚠ revisar</span>{% endif %}
         {% if row.line.unit_final is not none %}<span class="badge badge-ajuste" title="{{ row.line.override_reason or 'Ajuste manual' }}">ajuste</span>{% endif %}
       </td>

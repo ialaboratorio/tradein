@@ -15,7 +15,13 @@ PRODUCTS_FIXTURE = {
     "version": 1,
     "createdAt": "2026-10-21T02:45:00+0200",
     "products": [
-        {"idProduct": 101, "name": "Lightning Bolt", "idCategory": 1, "idExpansion": 209},
+        {
+            "idProduct": 101,
+            "name": "Lightning Bolt",
+            "idCategory": 1,
+            "idExpansion": 209,
+            "categoryName": "Magic Single",
+        },
         {"idProduct": 102, "name": "Sol Ring", "idCategory": 1, "idExpansion": 210},
     ],
 }
@@ -75,6 +81,8 @@ def test_sync_catalog_and_prices_idempotent(session):
 
     card = session.query(Card).filter_by(id_product=101).one()
     assert card.name == "Lightning Bolt"
+    assert card.category_name == "Magic Single"
+    assert session.query(Card).filter_by(id_product=102).one().category_name is None
     price = session.query(CardPrice).filter_by(id_product=101).one()
     assert price.low == 0.45
     assert price.low_foil == 1.2
@@ -82,9 +90,12 @@ def test_sync_catalog_and_prices_idempotent(session):
 
 
 def test_search_cards_endpoint(session):
+    from app.models import Expansion
+
     session.add(Card(game_id=1, id_product=101, name="Lightning Bolt", id_expansion=209))
     session.add(CardPrice(game_id=1, id_product=101, low=0.45, low_foil=1.2))
-    session.add(Card(game_id=1, id_product=102, name="Sol Ring"))
+    session.add(Card(game_id=1, id_product=102, name="Sol Ring", id_expansion=210))
+    session.add(Expansion(game_id=1, id_expansion=209, name="Core Set 2021"))
     session.commit()
 
     def override_get_db():
@@ -103,8 +114,13 @@ def test_search_cards_endpoint(session):
             assert data[0]["low"] == 0.45
             assert data[0]["game_name"] == "Magic"
             assert data[0]["has_price"] is True
+            assert data[0]["expansion_name"] == "Core Set 2021"
+            assert data[0]["set_label"] == "Core Set 2021"
 
             resp_no_price = client.get("/api/cards/search", params={"q": "sol"})
-            assert resp_no_price.json()[0]["has_price"] is False
+            no_price = resp_no_price.json()[0]
+            assert no_price["has_price"] is False
+            assert no_price["expansion_name"] is None
+            assert no_price["set_label"] == "Set #210"
     finally:
         app.dependency_overrides.clear()
