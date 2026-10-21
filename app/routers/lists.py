@@ -5,8 +5,8 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.db import get_db
 from app.models import (
-    CONDITIONS,
     GAME_NAMES,
+    LANGUAGES,
     Card,
     CardPrice,
     ListEvent,
@@ -46,8 +46,8 @@ def enrich_lines(lines: list[TradeLine]) -> list[dict]:
         enriched.append(
             {
                 "line": line,
-                "game_name": GAME_NAMES.get(line.game_id, str(line.game_id)),
-                "condition_label": CONDITIONS.get(line.condition, line.condition),
+                "condition_label": "NM",
+                "language_label": LANGUAGES.get(line.language, line.language),
                 **amounts,
             }
         )
@@ -67,13 +67,14 @@ def list_lists(request: Request, user=Depends(get_optional_user), db: Session = 
     return request.app.state.templates.TemplateResponse(
         request,
         "listas.html",
-        {"request": request, "user": user, "lists": lists},
+        {"request": request, "user": user, "lists": lists, "game_names": GAME_NAMES},
     )
 
 
 @router.post("/listas")
 def create_list(
     request: Request,
+    game_id: int = Form(1),
     note: str = Form(""),
     user=Depends(get_optional_user),
     db: Session = Depends(get_db),
@@ -81,7 +82,9 @@ def create_list(
     redirect = _guard_login(request, user)
     if redirect:
         return redirect
-    trade_list = TradeList(user_sub=user.sub, note=note.strip()[:200] or None)
+    if game_id not in GAME_NAMES:
+        return RedirectResponse("/listas", status_code=302)
+    trade_list = TradeList(user_sub=user.sub, game_id=game_id, note=note.strip()[:200] or None)
     db.add(trade_list)
     db.commit()
     db.add(ListEvent(list_id=trade_list.id, actor_sub=user.sub, action="creada"))
@@ -113,7 +116,6 @@ def list_detail(
             "trade_list": trade_list,
             "rows": enrich_lines(lines),
             "totals": totals,
-            "conditions": CONDITIONS,
             "game_names": GAME_NAMES,
         },
     )
@@ -123,11 +125,10 @@ def list_detail(
 def add_line(
     request: Request,
     list_id: int,
-    game_id: int = Form(...),
     id_product: int = Form(...),
     quantity: int = Form(1, ge=1, le=999),
     foil: str = Form(""),
-    condition: str = Form("nm"),
+    language: str = Form("es"),
     user=Depends(get_optional_user),
     db: Session = Depends(get_db),
 ):
@@ -137,9 +138,10 @@ def add_line(
     trade_list = _own_list(db, user, list_id)
     if trade_list is None or trade_list.status != "borrador":
         return RedirectResponse("/listas", status_code=302)
-    if condition not in CONDITIONS:
-        condition = "nm"
+    if language not in LANGUAGES:
+        language = "es"
 
+    game_id = trade_list.game_id
     card = db.get(Card, (game_id, id_product))
     if card is None:
         return RedirectResponse(f"/listas/{list_id}?error=sin_carta", status_code=302)
@@ -161,7 +163,8 @@ def add_line(
             id_expansion=card.id_expansion,
             quantity=quantity,
             foil=is_foil,
-            condition=condition,
+            condition="nm",
+            language=language,
             unit_low=unit_low,
             price_fetched_at=fetched_at,
         )

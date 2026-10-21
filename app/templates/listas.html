@@ -3,7 +3,12 @@
 {% block content %}
 <div class="page-head">
   <h1>Mis listas</h1>
-  <form method="post" action="/listas" class="inline-form">
+  <form method="post" action="/listas" class="inline-form create-list-form">
+    <select name="game_id" required aria-label="Juego">
+      {% for gid, name in game_names.items() %}
+      <option value="{{ gid }}">{{ name }}</option>
+      {% endfor %}
+    </select>
     <input type="text" name="note" placeholder="Nota (ej. entrega tienda)" maxlength="200">
     <button type="submit" class="btn">Nueva lista</button>
   </form>
@@ -16,6 +21,7 @@
   <thead>
     <tr>
       <th>#</th>
+      <th>Juego</th>
       <th>Estado</th>
       <th>Nota</th>
       <th>Creada</th>
@@ -26,6 +32,7 @@
     {% for list in lists %}
     <tr>
       <td>{{ list.id }}</td>
+      <td>{{ game_names.get(list.game_id, list.game_id) }}</td>
       <td><span class="badge badge-{{ list.status }}">{{ list.status }}</span></td>
       <td>{{ list.note or "—" }}</td>
       <td>{{ list.created_at.strftime("%d/%m/%Y %H:%M") if list.created_at else "—" }}</td>

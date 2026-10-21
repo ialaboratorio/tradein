@@ -11,6 +11,15 @@ def test_coefficients():
     assert unit_cash(None) is None
 
 
+def test_low_under_five_cents_offers_zero():
+    assert unit_cash(0.0) == Decimal("0.00")
+    assert unit_store(0.0) == Decimal("0.00")
+    assert unit_cash(0.049) == Decimal("0.00")
+    assert unit_store(0.049) == Decimal("0.00")
+    assert unit_cash(0.05) == Decimal("0.04")
+    assert unit_store(0.05) == Decimal("0.04")
+
+
 def test_money_rounding():
     assert money(Decimal("2.675")) == Decimal("2.68")
     assert money(Decimal("2.674")) == Decimal("2.67")

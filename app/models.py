@@ -37,6 +37,11 @@ CONDITIONS = {
     "poor": "Pobre (POOR)",
 }
 
+LANGUAGES = {
+    "es": "Español",
+    "en": "Inglés",
+}
+
 
 class User(Base):
     __tablename__ = "users"
@@ -89,6 +94,7 @@ class TradeList(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_sub: Mapped[str] = mapped_column(ForeignKey("users.sub"), index=True)
+    game_id: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     status: Mapped[str] = mapped_column(String(16), default="borrador")
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     payment_method: Mapped[str | None] = mapped_column(String(8), nullable=True)
@@ -118,6 +124,7 @@ class TradeLine(Base):
     quantity: Mapped[int] = mapped_column(Integer, default=1)
     foil: Mapped[bool] = mapped_column(Boolean, default=False)
     condition: Mapped[str] = mapped_column(String(8), default="nm")
+    language: Mapped[str] = mapped_column(String(2), nullable=False, default="es")
     unit_low: Mapped[float | None] = mapped_column(Float, nullable=True)
     price_fetched_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     unit_final: Mapped[float | None] = mapped_column(Float, nullable=True)

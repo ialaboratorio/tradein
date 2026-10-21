@@ -4,21 +4,29 @@ from decimal import ROUND_HALF_UP, Decimal
 from app.config import settings
 from app.models import TradeLine
 
+MIN_OFFER_LOW = Decimal("0.05")
+
 
 def money(value: Decimal) -> Decimal:
     return value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
+def _offered(low: float) -> Decimal:
+    if Decimal(str(low)) < MIN_OFFER_LOW:
+        return Decimal("0")
+    return Decimal(str(low))
+
+
 def unit_cash(low: float | None) -> Decimal | None:
     if low is None:
         return None
-    return money(Decimal(str(low)) * Decimal(str(settings.coef_cash)))
+    return money(_offered(low) * Decimal(str(settings.coef_cash)))
 
 
 def unit_store(low: float | None) -> Decimal | None:
     if low is None:
         return None
-    return money(Decimal(str(low)) * Decimal(str(settings.coef_store)))
+    return money(_offered(low) * Decimal(str(settings.coef_store)))
 
 
 def line_amounts(line: TradeLine) -> dict:

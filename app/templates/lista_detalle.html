@@ -2,7 +2,11 @@
 {% block title %}Lista #{{ trade_list.id }} · TradeIn{% endblock %}
 {% block content %}
 <div class="page-head">
-  <h1>Lista #{{ trade_list.id }} <span class="badge badge-{{ trade_list.status }}">{{ trade_list.status }}</span></h1>
+  <h1>Lista #{{ trade_list.id }}
+    <span class="badge">{{ game_names.get(trade_list.game_id, trade_list.game_id) }}</span>
+    <span class="badge badge-{{ trade_list.status }}">{{ trade_list.status }}</span>
+    <span class="badge">NM</span>
+  </h1>
   <div>
     <form method="post" action="/listas/{{ trade_list.id }}/refrescar" class="inline-form">
       <button type="submit" class="btn btn-secondary">Refrescar precios</button>
@@ -24,20 +28,18 @@
   <h2>Añadir carta</h2>
   <div class="search-box">
     <input type="text" id="card-search" placeholder="Busca por nombre (ej. Lightning Bolt)" autocomplete="off">
-    <input type="hidden" id="card-game" name="game_id">
-    <input type="hidden" id="card-product" name="id_product">
     <div id="search-results" class="search-results hidden"></div>
   </div>
-  <form method="post" action="/listas/{{ trade_list.id }}/lineas" id="add-line-form" class="line-form">
+  <form method="post" action="/listas/{{ trade_list.id }}/lineas" id="add-line-form" class="line-form" data-game-id="{{ trade_list.game_id }}">
     <div class="line-form-fields">
       <span id="selected-card" class="muted">Ninguna carta seleccionada</span>
+      <input type="hidden" id="card-product" name="id_product">
       <label>Cantidad <input type="number" name="quantity" value="1" min="1" max="999" required></label>
       <label class="check"><input type="checkbox" name="foil"> Foil</label>
-      <label>Estado
-        <select name="condition">
-          {% for code, label in conditions.items() %}
-          <option value="{{ code }}">{{ label }}</option>
-          {% endfor %}
+      <label>Idioma
+        <select name="language">
+          <option value="es">Español</option>
+          <option value="en">Inglés</option>
         </select>
       </label>
       <button type="submit" class="btn">Añadir</button>
@@ -53,10 +55,9 @@
   <thead>
     <tr>
       <th>Carta</th>
-      <th>Juego</th>
       <th>Cant.</th>
+      <th>Idioma</th>
       <th>Foil</th>
-      <th>Estado</th>
       <th>LOW</th>
       <th>Efect./u</th>
       <th>Tienda/u</th>
@@ -73,10 +74,9 @@
         {% if row.line.price_alert %}<span class="badge badge-alert" title="El precio ha variado bastante desde que se añadió">⚠ revisar</span>{% endif %}
         {% if row.line.unit_final is not none %}<span class="badge badge-ajuste" title="{{ row.line.override_reason or 'Ajuste manual' }}">ajuste</span>{% endif %}
       </td>
-      <td>{{ row.game_name }}</td>
       <td>{{ row.line.quantity }}</td>
+      <td>{{ row.language_label }}</td>
       <td>{{ "Sí" if row.line.foil else "No" }}</td>
-      <td>{{ row.condition_label }}</td>
       <td>{% if row.unit_low is not none %}{{ "%.2f"|format(row.unit_low) }} €{% else %}—{% endif %}</td>
       <td>{% if row.unit_cash is not none %}{{ row.unit_cash }} €{% else %}—{% endif %}</td>
       <td>{% if row.unit_store is not none %}{{ row.unit_store }} €{% else %}—{% endif %}</td>

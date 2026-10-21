@@ -1,12 +1,12 @@
 (function () {
   const search = document.getElementById("card-search");
   const results = document.getElementById("search-results");
-  const gameInput = document.getElementById("card-game");
   const productInput = document.getElementById("card-product");
   const selected = document.getElementById("selected-card");
   const form = document.getElementById("add-line-form");
   if (!search || !form) return;
 
+  const gameId = form.dataset.gameId;
   let timer = null;
   let controller = null;
 
@@ -16,12 +16,11 @@
   }
 
   function selectCard(item) {
-    gameInput.value = item.game_id;
     productInput.value = item.id_product;
     const price = item.has_price
       ? (item.low != null ? item.low.toFixed(2) + " €" : "solo foil")
       : "sin precio";
-    selected.textContent = item.name + " · " + item.game_name + " · LOW " + price;
+    selected.textContent = item.name + " · LOW " + price;
     selected.classList.remove("muted");
     search.value = "";
     hide();
@@ -38,9 +37,10 @@
       if (controller) controller.abort();
       controller = new AbortController();
       try {
-        const resp = await fetch("/api/cards/search?q=" + encodeURIComponent(q), {
-          signal: controller.signal,
-        });
+        const resp = await fetch(
+          "/api/cards/search?q=" + encodeURIComponent(q) + "&game=" + encodeURIComponent(gameId),
+          { signal: controller.signal }
+        );
         const data = await resp.json();
         results.innerHTML = "";
         if (!data.length) {
@@ -50,7 +50,7 @@
           const div = document.createElement("div");
           div.className = "search-item";
           const priceLabel = item.low != null ? item.low.toFixed(2) + " €" : "—";
-          div.textContent = item.name + " · " + item.game_name + " · LOW " + priceLabel;
+          div.textContent = item.name + " · LOW " + priceLabel;
           div.addEventListener("click", function () {
             selectCard(item);
           });
@@ -68,7 +68,7 @@
   });
 
   form.addEventListener("submit", function (event) {
-    if (!productInput.value || !gameInput.value) {
+    if (!productInput.value) {
       event.preventDefault();
       alert("Selecciona primero una carta de la lista de resultados.");
     }

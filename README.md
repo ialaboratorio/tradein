@@ -10,11 +10,13 @@ El dueño de la tienda valida cada lista desde su panel cuando recibe las cartas
 ## Características
 
 - **Acceso con Google** (OAuth 2.0 / OIDC). Registro abierto: cualquier cuenta Google puede entrar.
+- **Listas por TCG**: cada lista se crea para un juego concreto (Magic, Pokémon, Yu-Gi-Oh!, One Piece, Lorcana o Riftbound); la búsqueda de cartas se filtra automáticamente por ese juego.
 - **Panel de administración**: listas enviadas, detalle con precios, validación, rechazo con nota, ajuste por línea (override + motivo) y registro de pago (efectivo/tienda).
 - **Catálogo local de Cardmarket**: la app descarga a diario los ficheros oficiales gratuitos de [Cardmarket Downloads](https://downloads.s3.cardmarket.com/) para buscar cartas por nombre y conocer su precio `LOW` (oferta activa más barata).
 - **Listas por fases**: borrador → enviada → validada/rechazada → pagada, con auditoría de cada cambio.
 - **Snapshot de precios**: cada línea guarda el precio y la fecha en que se calculó; si al validar varía más de un umbral configurable, la línea se marca para revisión.
-- **Foil**: se usa el campo `low-foil` de la guía.
+- **Estado y idioma**: todas las cartas se valoran como **NM** (casi perfecta). Cada línea permite elegir **foil** (usa `low-foil`) e **idioma** (español o inglés, informativo para la tienda).
+- **Oferta mínima**: si el precio `LOW` es inferior a **5 céntimos**, la oferta es **0 €** (cartas bulk).
 - **100% server-rendered** (FastAPI + Jinja2), sin frameworks de frontend, responsive.
 
 ## Configuración (`.env`)

@@ -1,5 +1,6 @@
 import base64
 import json
+from decimal import Decimal
 
 import pytest
 from fastapi.testclient import TestClient
@@ -11,6 +12,7 @@ from sqlalchemy.pool import StaticPool
 from app.db import Base, get_db
 from app.main import app
 from app.models import Card, CardPrice, User
+from app.services import pricing
 
 SESSION_SECRET = "test-secret-key"
 
@@ -55,14 +57,16 @@ def client(session):
 
 
 def test_full_draft_flow(client):
-    resp = client.post("/listas", data={"note": "entrega"}, follow_redirects=False)
+    resp = client.post(
+        "/listas", data={"note": "entrega", "game_id": 1}, follow_redirects=False
+    )
     assert resp.status_code == 302
     list_url = resp.headers["location"]
     list_id = list_url.rstrip("/").split("/")[-1]
 
     resp = client.post(
         f"/listas/{list_id}/lineas",
-        data={"game_id": 1, "id_product": 101, "quantity": 2, "condition": "nm"},
+        data={"id_product": 101, "quantity": 2, "language": "es"},
         follow_redirects=False,
     )
     assert resp.status_code == 302
@@ -70,6 +74,7 @@ def test_full_draft_flow(client):
     page = client.get(f"/listas/{list_id}")
     assert page.status_code == 200
     assert "Lightning Bolt" in page.text
+    assert "Español" in page.text
     assert "10.00" in page.text
     assert "7.00" in page.text
     assert "8.05" in page.text
@@ -84,7 +89,7 @@ def test_full_draft_flow(client):
 
     resp = client.post(
         f"/listas/{list_id}/lineas",
-        data={"game_id": 1, "id_product": 101, "quantity": 1},
+        data={"id_product": 101, "quantity": 1},
         follow_redirects=False,
     )
     assert resp.status_code == 302
@@ -93,11 +98,13 @@ def test_full_draft_flow(client):
 
 
 def test_refresh_prices_alert(client, session):
-    resp = client.post("/listas", data={"note": ""}, follow_redirects=False)
+    resp = client.post(
+        "/listas", data={"note": "", "game_id": 1}, follow_redirects=False
+    )
     list_id = resp.headers["location"].rstrip("/").split("/")[-1]
     client.post(
         f"/listas/{list_id}/lineas",
-        data={"game_id": 1, "id_product": 101, "quantity": 1},
+        data={"id_product": 101, "quantity": 1},
     )
 
     price = session.get(CardPrice, (1, 101))
@@ -119,3 +126,66 @@ def test_cannot_touch_others_list(client, session):
     resp = client.post(f"/listas/{other.id}/enviar", follow_redirects=False)
     assert resp.status_code == 302
     assert resp.headers["location"] == "/listas"
+
+
+def test_list_is_mono_game(client, session):
+    session.add(Card(game_id=22, id_product=900, name="Rift Card", id_expansion=1))
+    session.add(CardPrice(game_id=22, id_product=900, low=5.0))
+    session.commit()
+
+    resp = client.post(
+        "/listas", data={"note": "", "game_id": 1}, follow_redirects=False
+    )
+    list_id = resp.headers["location"].rstrip("/").split("/")[-1]
+
+    resp = client.post(
+        f"/listas/{list_id}/lineas",
+        data={"id_product": 900, "quantity": 1},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 302
+    assert "error=sin_carta" in resp.headers["location"]
+
+
+def test_forces_nm_and_saves_language(client, session):
+    resp = client.post(
+        "/listas", data={"note": "", "game_id": 1}, follow_redirects=False
+    )
+    list_id = resp.headers["location"].rstrip("/").split("/")[-1]
+
+    client.post(
+        f"/listas/{list_id}/lineas",
+        data={"id_product": 101, "quantity": 1, "language": "en", "condition": "played"},
+    )
+
+    from app.models import TradeLine
+
+    line = session.query(TradeLine).one()
+    assert line.condition == "nm"
+    assert line.language == "en"
+    page = client.get(f"/listas/{list_id}")
+    assert "Inglés" in page.text
+
+
+def test_low_under_five_cents_offers_zero(client, session):
+    session.add(Card(game_id=1, id_product=55, name="Bulk Common", id_expansion=1))
+    session.add(CardPrice(game_id=1, id_product=55, low=0.03))
+    session.commit()
+
+    resp = client.post(
+        "/listas", data={"note": "", "game_id": 1}, follow_redirects=False
+    )
+    list_id = resp.headers["location"].rstrip("/").split("/")[-1]
+    client.post(f"/listas/{list_id}/lineas", data={"id_product": 55, "quantity": 4})
+
+    page = client.get(f"/listas/{list_id}")
+    assert "Bulk Common" in page.text
+    assert "0.00 €" in page.text
+    assert "0.03" in page.text
+
+    from app.models import TradeList
+
+    trade_list = session.get(TradeList, int(list_id))
+    totals = pricing.list_totals(list(trade_list.lines))
+    assert totals["total_cash"] == Decimal("0.00")
+    assert totals["total_store"] == Decimal("0.00")

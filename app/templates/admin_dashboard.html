@@ -10,12 +10,13 @@
   {% else %}
   <table class="table">
     <thead>
-      <tr><th>#</th><th>Usuario</th><th>Nota</th><th>Actualizada</th><th></th></tr>
+      <tr><th>#</th><th>Juego</th><th>Usuario</th><th>Nota</th><th>Actualizada</th><th></th></tr>
     </thead>
     <tbody>
       {% for list in pending %}
       <tr>
         <td>{{ list.id }}</td>
+        <td>{{ game_names.get(list.game_id, list.game_id) }}</td>
         <td>{{ list.owner.email if list.owner else list.user_sub }}</td>
         <td>{{ list.note or "—" }}</td>
         <td>{{ list.updated_at.strftime("%d/%m/%Y %H:%M") if list.updated_at else "—" }}</td>
@@ -31,12 +32,13 @@
   <h2>Todas las listas</h2>
   <table class="table">
     <thead>
-      <tr><th>#</th><th>Usuario</th><th>Estado</th><th>Pago</th><th>Nota</th><th></th></tr>
+      <tr><th>#</th><th>Juego</th><th>Usuario</th><th>Estado</th><th>Pago</th><th>Nota</th><th></th></tr>
     </thead>
     <tbody>
       {% for list in lists %}
       <tr>
         <td>{{ list.id }}</td>
+        <td>{{ game_names.get(list.game_id, list.game_id) }}</td>
         <td>{{ list.owner.email if list.owner else list.user_sub }}</td>
         <td><span class="badge badge-{{ list.status }}">{{ list.status }}</span></td>
         <td>{{ payment_labels.get(list.payment_method, "—") if list.payment_method else "—" }}</td>

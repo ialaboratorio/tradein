@@ -88,6 +88,7 @@ def admin_list_detail(
             "totals": totals,
             "events": sorted(trade_list.events, key=lambda event: event.id, reverse=True),
             "payment_labels": PAYMENT_LABELS,
+            "game_names": GAME_NAMES,
         },
     )
 
