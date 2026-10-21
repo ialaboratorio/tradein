@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Mis listas · TradeIn{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Mis listas</h1>
+  <form method="post" action="/listas" class="inline-form">
+    <input type="text" name="note" placeholder="Nota (ej. entrega tienda)" maxlength="200">
+    <button type="submit" class="btn">Nueva lista</button>
+  </form>
+</div>
+
+{% if not lists %}
+  <p class="muted">Aún no tienes listas. Crea una y empieza a añadir cartas.</p>
+{% else %}
+<table class="table">
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>Estado</th>
+      <th>Nota</th>
+      <th>Creada</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for list in lists %}
+    <tr>
+      <td>{{ list.id }}</td>
+      <td><span class="badge badge-{{ list.status }}">{{ list.status }}</span></td>
+      <td>{{ list.note or "—" }}</td>
+      <td>{{ list.created_at.strftime("%d/%m/%Y %H:%M") if list.created_at else "—" }}</td>
+      <td><a class="btn-link" href="/listas/{{ list.id }}">Abrir</a></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}

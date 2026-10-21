@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}TradeIn{% endblock %}</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a href="/" class="brand">Trade<span>In</span></a>
+    <nav>
+      {% if user %}
+        {% if user.is_admin %}<a href="/admin">Admin</a>{% endif %}
+        <a href="/listas">Mis listas</a>
+        <span class="user-chip">{{ user.name or user.email }}</span>
+        <form method="post" action="/auth/logout" class="inline-form">
+          <button type="submit" class="btn-link">Salir</button>
+        </form>
+      {% else %}
+        <a href="/auth/google/login">Entrar con Google</a>
+      {% endif %}
+    </nav>
+  </header>
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

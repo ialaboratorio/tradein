@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Admin · TradeIn{% endblock %}
+{% block content %}
+<h1>Panel de administración</h1>
+
+<section class="panel">
+  <h2>Pendientes de validar ({{ pending|length }})</h2>
+  {% if not pending %}
+    <p class="muted">No hay listas esperando validación.</p>
+  {% else %}
+  <table class="table">
+    <thead>
+      <tr><th>#</th><th>Usuario</th><th>Nota</th><th>Actualizada</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for list in pending %}
+      <tr>
+        <td>{{ list.id }}</td>
+        <td>{{ list.owner.email if list.owner else list.user_sub }}</td>
+        <td>{{ list.note or "—" }}</td>
+        <td>{{ list.updated_at.strftime("%d/%m/%Y %H:%M") if list.updated_at else "—" }}</td>
+        <td><a class="btn-link" href="/admin/listas/{{ list.id }}">Revisar</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <h2>Todas las listas</h2>
+  <table class="table">
+    <thead>
+      <tr><th>#</th><th>Usuario</th><th>Estado</th><th>Pago</th><th>Nota</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for list in lists %}
+      <tr>
+        <td>{{ list.id }}</td>
+        <td>{{ list.owner.email if list.owner else list.user_sub }}</td>
+        <td><span class="badge badge-{{ list.status }}">{{ list.status }}</span></td>
+        <td>{{ payment_labels.get(list.payment_method, "—") if list.payment_method else "—" }}</td>
+        <td>{{ list.note or "—" }}</td>
+        <td><a class="btn-link" href="/admin/listas/{{ list.id }}">Abrir</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<section class="panel">
+  <h2>Sincronización Cardmarket</h2>
+  {% if not sync_runs %}
+    <p class="muted">Todavía no se ha ejecutado ninguna sincronización.</p>
+  {% else %}
+  <table class="table">
+    <thead>
+      <tr><th>Fecha</th><th>Juego</th><th>Tipo</th><th>Estado</th><th>Detalle</th></tr>
+    </thead>
+    <tbody>
+      {% for run in sync_runs %}
+      <tr>
+        <td>{{ run.created_at.strftime("%d/%m %H:%M") if run.created_at else "—" }}</td>
+        <td>{{ game_names.get(run.game_id, run.game_id) }}</td>
+        <td>{{ "Catálogo" if run.kind == "catalog" else "Precios" }}</td>
+        <td>{% if run.ok %}<span class="badge badge-validada">OK</span>{% else %}<span class="badge badge-rechazada">ERROR</span>{% endif %}</td>
+        <td class="muted">{{ run.message }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</section>
+{% endblock %}

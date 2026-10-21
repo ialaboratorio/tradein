@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero">
+  <h1>Tu lista de venta de cartas</h1>
+  <p>Monta tu lista y calcula al momento cuánto te ofrecemos en efectivo o en dinero de tienda.</p>
+  {% if user %}
+    <p>Hola, <strong>{{ user.name or user.email }}</strong>.</p>
+    <p><a class="btn" href="/listas">Ir a mis listas</a></p>
+  {% else %}
+    <p><a class="btn" href="/auth/google/login">Entrar con Google</a></p>
+    <p class="muted">Precios de referencia: Cardmarket (LOW).</p>
+  {% endif %}
+  {% if request.query_params.get('error') %}
+    <p class="error">No se pudo completar el acceso con Google. Inténtalo de nuevo.</p>
+  {% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Admin lista #{{ trade_list.id }} · TradeIn{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Lista #{{ trade_list.id }} <span class="badge badge-{{ trade_list.status }}">{{ trade_list.status }}</span></h1>
+  <a class="btn-link" href="/admin">← Volver</a>
+</div>
+
+<section class="panel">
+  <p><strong>Usuario:</strong> {{ owner.email if owner else trade_list.user_sub }}
+    {% if owner and owner.name %} ({{ owner.name }}){% endif %}</p>
+  {% if trade_list.note %}<p><strong>Nota:</strong> {{ trade_list.note }}</p>{% endif %}
+  {% if trade_list.payment_method %}<p><strong>Pagada en:</strong> {{ payment_labels.get(trade_list.payment_method, trade_list.payment_method) }}</p>{% endif %}
+
+  {% if trade_list.status == "enviada" %}
+  <div class="actions-row">
+    <form method="post" action="/admin/listas/{{ trade_list.id }}/validar">
+      <button type="submit" class="btn">Validar lista</button>
+    </form>
+    <form method="post" action="/admin/listas/{{ trade_list.id }}/rechazar" class="reject-form">
+      <input type="text" name="reason" placeholder="Motivo del rechazo" maxlength="250">
+      <button type="submit" class="btn btn-danger">Rechazar</button>
+    </form>
+  </div>
+  {% endif %}
+
+  {% if trade_list.status == "validada" %}
+  <div class="actions-row">
+    <form method="post" action="/admin/listas/{{ trade_list.id }}/pagar">
+      <input type="hidden" name="payment_method" value="cash">
+      <button type="submit" class="btn">Marcar pagada en efectivo</button>
+    </form>
+    <form method="post" action="/admin/listas/{{ trade_list.id }}/pagar">
+      <input type="hidden" name="payment_method" value="store">
+      <button type="submit" class="btn btn-secondary">Marcar pagada en tienda</button>
+    </form>
+  </div>
+  {% endif %}
+</section>
+
+{% if request.query_params.get("error") %}
+  <p class="error">No se pudo completar la operación.</p>
+{% endif %}
+
+{% if not rows %}
+  <p class="muted">La lista está vacía.</p>
+{% else %}
+<table class="table">
+  <thead>
+    <tr>
+      <th>Carta</th>
+      <th>Juego</th>
+      <th>Cant.</th>
+      <th>Foil</th>
+      <th>Estado</th>
+      <th>LOW</th>
+      <th>Efect./u</th>
+      <th>Tienda/u</th>
+      <th>Total efect.</th>
+      <th>Total tienda</th>
+      <th>Ajuste (€ efect./u)</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in rows %}
+    <tr {% if row.line.price_alert %}class="row-alert"{% endif %}>
+      <td>
+        {{ row.line.card_name }}
+        {% if row.line.price_alert %}<span class="badge badge-alert">⚠ revisar</span>{% endif %}
+        {% if row.line.unit_final is not none %}<span class="badge badge-ajuste">ajuste</span>{% endif %}
+      </td>
+      <td>{{ row.game_name }}</td>
+      <td>{{ row.line.quantity }}</td>
+      <td>{{ "Sí" if row.line.foil else "No" }}</td>
+      <td>{{ row.condition_label }}</td>
+      <td>{% if row.unit_low is not none %}{{ "%.2f"|format(row.unit_low) }} €{% else %}—{% endif %}</td>
+      <td>{% if row.unit_cash is not none %}{{ row.unit_cash }} €{% else %}—{% endif %}</td>
+      <td>{% if row.unit_store is not none %}{{ row.unit_store }} €{% else %}—{% endif %}</td>
+      <td>{% if row.total_cash is not none %}{{ row.total_cash }} €{% else %}—{% endif %}</td>
+      <td>{% if row.total_store is not none %}{{ row.total_store }} €{% else %}—{% endif %}</td>
+      <td>
+        <form method="post" action="/admin/lineas/{{ row.line.id }}/ajustar" class="adjust-form">
+          <input type="number" name="unit_final" step="0.01" min="0" value="{{ row.line.unit_final if row.line.unit_final is not none else "" }}" placeholder="auto">
+          <input type="text" name="reason" maxlength="255" placeholder="Motivo" value="{{ row.line.override_reason or "" }}">
+          <button type="submit" class="btn btn-secondary">OK</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<div class="totals panel">
+  <div><span class="muted">Oferta en efectivo:</span> <strong>{{ totals.total_cash }} €</strong></div>
+  <div><span class="muted">Oferta en dinero de tienda:</span> <strong>{{ totals.total_store }} €</strong></div>
+  {% if totals.missing_price %}
+  <p class="error">{{ totals.missing_price }} carta(s) sin precio de referencia.</p>
+  {% endif %}
+</div>
+{% endif %}
+
+<section class="panel">
+  <h2>Historial</h2>
+  {% if not events %}
+    <p class="muted">Sin eventos.</p>
+  {% else %}
+  <ul class="events">
+    {% for event in events %}
+    <li>
+      <span class="muted">{{ event.created_at.strftime("%d/%m/%Y %H:%M") if event.created_at else "—" }}</span>
+      — <strong>{{ event.action }}</strong>
+      {% if event.detail %} · {{ event.detail }}{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</section>
+{% endblock %}
