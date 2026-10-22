@@ -1,3 +1,5 @@
+FROM litestream/litestream:0.3.13 AS litestream
+
 FROM python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1 \
@@ -6,6 +8,8 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
 WORKDIR /app
+
+COPY --from=litestream /usr/local/bin/litestream /usr/local/bin/litestream
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
