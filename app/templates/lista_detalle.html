@@ -26,7 +26,7 @@
 {% if trade_list.status == "borrador" %}
 <section class="panel">
   <h2>Añadir carta</h2>
-  <p class="muted">Busca por nombre y elige la versión (expansión) que coincide con tu carta. Después indica cantidad, foil e idioma.</p>
+  <p class="muted">Busca por nombre y pulsa Enter para ver todas las versiones en grande. Elige la que coincide con tu carta y después indica cantidad, foil e idioma.</p>
   <div class="search-box">
     <input type="text" id="card-search" placeholder="Busca por nombre (ej. Lightning Bolt)" autocomplete="off">
     <div id="search-results" class="search-results hidden"></div>
@@ -47,6 +47,16 @@
     </div>
   </form>
 </section>
+
+<div id="versions-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="versions-title">
+  <div class="modal-panel">
+    <div class="modal-head">
+      <h2 id="versions-title">Elige tu versión <span id="versions-count" class="muted"></span></h2>
+      <button type="button" class="btn-link" id="versions-close" aria-label="Cerrar">✕</button>
+    </div>
+    <div id="versions-grid" class="versions-grid"></div>
+  </div>
+</div>
 {% endif %}
 
 {% if not rows %}

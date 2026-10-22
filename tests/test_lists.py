@@ -73,6 +73,7 @@ def test_full_draft_flow(client):
 
     page = client.get(f"/listas/{list_id}")
     assert page.status_code == 200
+    assert "versions-modal" in page.text
     assert "Lightning Bolt" in page.text
     assert "Español" in page.text
     assert "LOW (mercado)" not in page.text
@@ -166,6 +167,17 @@ def test_forces_nm_and_saves_language(client, session):
     assert line.language == "en"
     page = client.get(f"/listas/{list_id}")
     assert "Inglés" in page.text
+
+
+def test_create_list_only_supported_games(client):
+    resp = client.post("/listas", data={"game_id": 3}, follow_redirects=False)
+    assert resp.status_code == 302
+    assert resp.headers["location"] == "/listas"
+
+    resp = client.post("/listas", data={"game_id": 24}, follow_redirects=False)
+    assert resp.status_code == 302
+    assert resp.headers["location"].startswith("/listas/")
+    assert resp.headers["location"] != "/listas"
 
 
 def test_low_under_five_cents_offers_zero(client, session):

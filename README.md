@@ -1,6 +1,6 @@
 # TradeIn
 
-Web para que los usuarios registados monten su **lista de venta de cartas** (Magic, Pokémon, Yu-Gi-Oh!, One Piece, Lorcana, Riftbound...) y vean al momento el importe que la tienda les ofrece. El precio de referencia es el **precio más barato de venta en [Cardmarket](https://www.cardmarket.com)** (campo `LOW` de su guía de precios oficial y gratuita), al que se aplican dos coeficientes configurables:
+Web para que los usuarios registados monten su **lista de venta de cartas** (Magic, Pokémon, One Piece y Gundam) y vean al momento el importe que la tienda les ofrece. El precio de referencia es el **precio más barato de venta en [Cardmarket](https://www.cardmarket.com)** (campo `LOW` de su guía de precios oficial y gratuita), al que se aplican dos coeficientes configurables:
 
 - **Efectivo**: `LOW × 0,70`
 - **Dinero de tienda**: `LOW × 0,805` (es decir, `0,70 × 1,15`)
@@ -10,7 +10,8 @@ El dueño de la tienda valida cada lista desde su panel cuando recibe las cartas
 ## Características
 
 - **Acceso con Google** (OAuth 2.0 / OIDC). Registro abierto: cualquier cuenta Google puede entrar.
-- **Listas por TCG**: cada lista se crea para un juego concreto (Magic, Pokémon, Yu-Gi-Oh!, One Piece, Lorcana o Riftbound); la búsqueda de cartas se filtra automáticamente por ese juego.
+- **Listas por TCG**: cada lista se crea para un juego concreto (Magic, Pokémon, One Piece o Gundam); la búsqueda de cartas se filtra automáticamente por ese juego.
+- **Buscador de versiones**: escribes el nombre y ves las coincidencias; al pulsar **Enter** se abre un panel con todas las versiones en grande (miniatura, nombre y expansión) para elegir exactamente la tuya.
 - **Panel de administración**: listas enviadas, detalle con precios, validación, rechazo con nota, ajuste por línea (override + motivo) y registro de pago (efectivo/tienda).
 - **Catálogo local de Cardmarket**: la app descarga a diario los ficheros oficiales gratuitos de [Cardmarket Downloads](https://downloads.s3.cardmarket.com/) para buscar cartas por nombre y conocer su precio `LOW` (oferta activa más barata).
 - **Solo cartas sueltas**: el catálogo descarta productos que no son singles jugables (Art Series, tokens, emblemas y oversized), tanto al sincronizar como en la búsqueda.
@@ -43,7 +44,7 @@ cp .env.example .env
 | `DATABASE_URL` | Por defecto SQLite en `./data/tradein.db` (relativa al CWD; en Docker es `/app/data/tradein.db`) |
 | `COEF_CASH` | Coeficiente de compra en efectivo (0,7) |
 | `COEF_STORE` | Coeficiente de compra en dinero de tienda (0,805) |
-| `SUPPORTED_GAMES` | IDs de juego de Cardmarket: 1=MTG, 6=Pokémon, 3=Yu-Gi-Oh!, 18=One Piece, 19=Lorcana, 22=Riftbound |
+| `SUPPORTED_GAMES` | IDs de juego de Cardmarket: 1=MTG, 6=Pokémon, 18=One Piece, 24=Gundam |
 | `PRICE_ALERT_PCT` | % de variación desde el snapshot que marca una línea para revisión (10) |
 | `PRICE_CACHE_TTL_HOURS` | Horas de vigencia de un precio cacheado (24) |
 | `SYNC_TIME` | Hora de la sincronización diaria con Cardmarket, HH:MM (03:30) |
@@ -123,19 +124,19 @@ tests/               # pytest (62 tests)
 - El campo `LOW` es la oferta activa más barata (mezcla idiomas y condiciones); el precio final de compra lo decide la tienda al validar en persona.
 - Cada **impresión** (expansión/arte/variante) es un producto distinto en Cardmarket y tiene su propio `LOW`: por eso la búsqueda lista todas las versiones para que el usuario elija la suya.
 - **Filtro de singles**: se descartan los productos que no son cartas sueltas: nombres que empiezan por `Art Series:`, tokens (nombres acabados en `Token` o `Token (...)`; se conservan cartas reales como *Token Collector*), oversized y emblemas (salvo cartas reales como *Leering Emblem*); también los de expansiones de tokens/art series.
-- **Nombres de expansión**: Cardmarket no publica un listado de expansiones, así que los nombres se derivan de los ficheros oficiales `products_nonsingles` (productos tipo *booster* de cada set); en Magic se completa con [MTGJSON](https://mtgjson.com). Las expansiones sin nombre disponible se muestran como `Set #id` (cobertura actual de cartas con nombre: MTG 68%, Yu-Gi-Oh! 80%, Pokémon 72%, One Piece 86%, Lorcana 94%, Riftbound 97%).
+- **Nombres de expansión**: Cardmarket no publica un listado de expansiones, así que los nombres se derivan de los ficheros oficiales `products_nonsingles` (productos tipo *booster* de cada set); en Magic se completa con [MTGJSON](https://mtgjson.com). Las expansiones sin nombre disponible se muestran como `Set #id` (cobertura actual de cartas con nombre: MTG 68%, Pokémon 72%, One Piece 86%, Gundam 60%).
 - **Límite del idioma**: Cardmarket no publica precios por idioma dentro de una misma impresión (solo existe LOW por producto); para esos casos la tienda puede ajustar el precio manualmente desde el panel de administración.
 - Este proyecto **no hace scraping** de cardmarket.com (prohibido por sus términos y bloqueado técnicamente), ni usa su API oficial (cerrada a nuevas aplicaciones). Solo descarga los ficheros públicos de `downloads.s3.cardmarket.com`.
 - **Atribución**: "Precios: Cardmarket". Este proyecto no está afiliado a Cardmarket.
 
 ## Imágenes de las cartas
 
-- Endpoint único `GET /img/{id_product}`; se usa en las listas y en el buscador (miniaturas en grid y en cada fila).
-- **Sincronizadas por lotes** (junto con el sync diario): Magic (índice de [Scryfall](https://scryfall.com) con `cardmarket_id` directo), One Piece y Riftbound (índice de [DotGG](https://dotgg.gg)). Cobertura actual: MTG 98.713, One Piece 3.583 y Riftbound 1.399 productos.
-- **Resueltas bajo demanda** en la primera petición de cada carta: Yu-Gi-Oh! ([YGOPRODeck](https://ygoprodeck.com), re-alojado según su política), Lorcana ([Lorcast](https://lorcast.com), nombre + set) y Pokémon ([Pokémon TCG API](https://pokemontcg.io), nombre + expansión).
+- Endpoint único `GET /img/{id_product}`; se usa en las listas, en el buscador y en el panel de versiones (miniaturas grandes al pulsar Enter).
+- **Sincronizadas por lotes** (junto con el sync diario): Magic (índice de [Scryfall](https://scryfall.com) con `cardmarket_id` directo) y One Piece (índice de [DotGG](https://dotgg.gg)). Cobertura actual: MTG 98.713 y One Piece 3.583 productos.
+- **Resueltas bajo demanda** en la primera petición de cada carta: Pokémon ([Pokémon TCG API](https://pokemontcg.io), nombre + expansión). Gundam aún no tiene fuente pública de imágenes: muestra el marcador de posición.
 - **Caché en disco**: las imágenes se guardan en `data/images/` (volumen `./data` en Docker) y se sirven con caché HTTP de 7 días; los fallos se recuerdan 24 h para respetar los límites de las APIs (pokemontcg.io limita a 30 peticiones/min sin clave, y sus errores 500 son intermitentes — se reintenta automáticamente).
 - **Fallback**: si una fuente no tiene la imagen o no responde, se sirve un marcador de posición neutro (SVG) sin caché. Cuando no quedan resoluciones libres (8 simultáneas), se sirve un marcador **transitorio** y la siguiente petición (del cliente o de otro visitante) aprovechará el primer hueco para resolverla; el cliente reintenta sola con backoff hasta ~100 s, así que la imagen acaba apareciendo sin recargar la página.
-- **Atribución de imágenes**: Scryfall (fan content policy; enlazamos sus URLs de imagen), DotGG (One Piece DB / Riftbound DB), YGOPRODeck, Lorcast y Pokémon TCG API. Este proyecto no está afiliado a ninguno de ellos.
+- **Atribución de imágenes**: Scryfall (fan content policy; enlazamos sus URLs de imagen), DotGG (One Piece DB) y Pokémon TCG API. Este proyecto no está afiliado a ninguno de ellos.
 
 ## Roadmap
 

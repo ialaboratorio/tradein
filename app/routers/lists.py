@@ -3,6 +3,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
+from app.config import settings
 from app.db import get_db
 from app.models import (
     GAME_NAMES,
@@ -70,7 +71,15 @@ def list_lists(request: Request, user=Depends(get_optional_user), db: Session = 
     return request.app.state.templates.TemplateResponse(
         request,
         "listas.html",
-        {"request": request, "user": user, "lists": lists, "game_names": GAME_NAMES},
+        {
+            "request": request,
+            "user": user,
+            "lists": lists,
+            "game_names": GAME_NAMES,
+            "supported_games": {
+                gid: GAME_NAMES[gid] for gid in settings.game_ids() if gid in GAME_NAMES
+            },
+        },
     )
 
 
@@ -85,7 +94,7 @@ def create_list(
     redirect = _guard_login(request, user)
     if redirect:
         return redirect
-    if game_id not in GAME_NAMES:
+    if game_id not in settings.game_ids() or game_id not in GAME_NAMES:
         return RedirectResponse("/listas", status_code=302)
     trade_list = TradeList(user_sub=user.sub, game_id=game_id, note=note.strip()[:200] or None)
     db.add(trade_list)

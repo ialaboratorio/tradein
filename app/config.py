@@ -22,7 +22,7 @@ class Settings(BaseSettings):
 
     coef_cash: float = 0.7
     coef_store: float = 0.805
-    supported_games: str = "1,6,3,18,19,22"
+    supported_games: str = "1,6,18,24"
     price_alert_pct: float = 10.0
     price_cache_ttl_hours: int = 24
     sync_time: str = "03:30"

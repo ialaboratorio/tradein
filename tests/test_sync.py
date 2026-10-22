@@ -30,20 +30,21 @@ def session():
 
 def test_stale_game_ids_checks_each_game(session):
     all_games = settings.game_ids()
+    fresh_game = all_games[-1]
     assert stale_game_ids(session) == all_games
 
-    session.add(CardPrice(game_id=22, id_product=1, low=1.0, fetched_at=utcnow()))
+    session.add(CardPrice(game_id=fresh_game, id_product=1, low=1.0, fetched_at=utcnow()))
     session.commit()
     stale = stale_game_ids(session)
-    assert 22 not in stale
-    assert stale == [g for g in all_games if g != 22]
+    assert fresh_game not in stale
+    assert stale == [g for g in all_games if g != fresh_game]
 
     old = utcnow() - timedelta(hours=settings.price_cache_ttl_hours + 2)
     session.add(CardPrice(game_id=1, id_product=2, low=1.0, fetched_at=old))
     session.commit()
     stale = stale_game_ids(session)
     assert 1 in stale
-    assert 22 not in stale
+    assert fresh_game not in stale
     assert len(stale) == len(all_games) - 1
 
 

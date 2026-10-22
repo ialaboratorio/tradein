@@ -27,6 +27,7 @@ GAME_NAMES = {
     18: "One Piece",
     19: "Lorcana",
     22: "Riftbound",
+    24: "Gundam",
 }
 
 CONDITIONS = {

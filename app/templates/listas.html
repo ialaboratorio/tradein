@@ -5,7 +5,7 @@
   <h1>Mis listas</h1>
   <form method="post" action="/listas" class="inline-form create-list-form">
     <select name="game_id" required aria-label="Juego">
-      {% for gid, name in game_names.items() %}
+      {% for gid, name in supported_games.items() %}
       <option value="{{ gid }}">{{ name }}</option>
       {% endfor %}
     </select>
