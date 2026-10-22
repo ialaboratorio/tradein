@@ -76,6 +76,20 @@ class Expansion(Base):
     fetched_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
+class CardImage(Base):
+    __tablename__ = "card_images"
+
+    id_product: Mapped[int] = mapped_column(Integer, primary_key=True)
+    game_id: Mapped[int] = mapped_column(Integer, index=True)
+    source: Mapped[str] = mapped_column(String(16))
+    source_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    local_path: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    content_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    downloaded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    failed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
 class CardPrice(Base):
     __tablename__ = "card_prices"
     __table_args__ = (PrimaryKeyConstraint("game_id", "id_product"),)

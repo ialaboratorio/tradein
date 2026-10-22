@@ -68,10 +68,15 @@
     {% for row in rows %}
     <tr {% if row.line.price_alert %}class="row-alert"{% endif %}>
       <td>
-        {{ row.line.card_name }}
-        {% if row.expansion_label %}<div class="muted">{{ row.expansion_label }}</div>{% endif %}
-        {% if row.line.price_alert %}<span class="badge badge-alert">⚠ revisar</span>{% endif %}
-        {% if row.line.unit_final is not none %}<span class="badge badge-ajuste">ajuste</span>{% endif %}
+        <div class="card-cell">
+          <img class="line-thumb" src="/img/{{ row.line.id_product }}" data-thumb-id="{{ row.line.id_product }}" alt="" loading="lazy" width="32" height="45">
+          <div>
+            {{ row.line.card_name }}
+            {% if row.expansion_label %}<div class="muted">{{ row.expansion_label }}</div>{% endif %}
+            {% if row.line.price_alert %}<span class="badge badge-alert">⚠ revisar</span>{% endif %}
+            {% if row.line.unit_final is not none %}<span class="badge badge-ajuste">ajuste</span>{% endif %}
+          </div>
+        </div>
       </td>
       <td>{{ row.line.quantity }}</td>
       <td>{{ row.language_label }}</td>
@@ -118,4 +123,5 @@
   </ul>
   {% endif %}
 </section>
+<script src="/static/js/thumbs.js"></script>
 {% endblock %}

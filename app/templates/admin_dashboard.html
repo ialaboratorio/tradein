@@ -64,7 +64,7 @@
       <tr>
         <td>{{ run.created_at.strftime("%d/%m %H:%M") if run.created_at else "—" }}</td>
         <td>{{ game_names.get(run.game_id, run.game_id) }}</td>
-        <td>{{ {"catalog": "Catálogo", "prices": "Precios", "expansions": "Expansiones"}.get(run.kind, run.kind) }}</td>
+        <td>{{ {"catalog": "Catálogo", "prices": "Precios", "expansions": "Expansiones", "images": "Imágenes"}.get(run.kind, run.kind) }}</td>
         <td>{% if run.ok %}<span class="badge badge-validada">OK</span>{% else %}<span class="badge badge-rechazada">ERROR</span>{% endif %}</td>
         <td class="muted">{{ run.message }}</td>
       </tr>

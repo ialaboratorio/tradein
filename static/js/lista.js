@@ -15,6 +15,18 @@
     results.innerHTML = "";
   }
 
+  function thumb(idProduct, extraClass) {
+    const img = document.createElement("img");
+    img.className = extraClass ? "card-thumb " + extraClass : "card-thumb";
+    img.src = "/img/" + idProduct;
+    img.alt = "";
+    img.loading = "lazy";
+    img.width = 36;
+    img.height = 50;
+    if (window.watchThumb) window.watchThumb(img, idProduct);
+    return img;
+  }
+
   function searchLabel(item) {
     const parts = [item.name];
     if (item.set_label) parts.push(item.set_label);
@@ -34,7 +46,9 @@
     if (item.low != null && item.low_foil != null)
       parts.push("Foil " + item.low_foil.toFixed(2) + " €");
     parts.push("ref " + item.id_product);
-    selected.textContent = parts.join(" · ");
+    const label = document.createElement("span");
+    label.textContent = parts.join(" · ");
+    selected.replaceChildren(thumb(item.id_product, "card-thumb-lg"), label);
     selected.classList.remove("muted");
     search.value = "";
     hide();
@@ -63,7 +77,10 @@
         data.forEach(function (item) {
           const div = document.createElement("div");
           div.className = "search-item";
-          div.textContent = searchLabel(item);
+          const label = document.createElement("span");
+          label.textContent = searchLabel(item);
+          div.appendChild(thumb(item.id_product));
+          div.appendChild(label);
           div.addEventListener("click", function () {
             selectCard(item);
           });

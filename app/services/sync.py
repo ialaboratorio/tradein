@@ -8,7 +8,7 @@ import httpx
 from app.config import settings
 from app.db import SessionLocal
 from app.models import CardPrice, SyncRun, utcnow
-from app.services import cardmarket, expansions
+from app.services import cardmarket, expansions, images
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -28,6 +28,8 @@ def run_full_sync(game_ids: list[int] | None = None) -> list[dict]:
                     ("expansions", expansions.sync_game_expansions),
                     ("prices", cardmarket.sync_game_prices),
                 )
+                if game_id in images.SYNC_IMAGE_SOURCES:
+                    jobs = jobs + (("images", images.sync_game_images),)
                 for kind, fn in jobs:
                     try:
                         count = fn(client, db, game_id)

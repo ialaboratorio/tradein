@@ -69,15 +69,18 @@ def test_run_full_sync_isolates_job_failures(monkeypatch, session):
     monkeypatch.setattr(sync_mod.cardmarket, "sync_game_catalog", catalog_boom)
     monkeypatch.setattr(sync_mod.expansions, "sync_game_expansions", ok)
     monkeypatch.setattr(sync_mod.cardmarket, "sync_game_prices", ok)
+    monkeypatch.setattr(sync_mod.images, "sync_game_images", ok)
     monkeypatch.setattr(sync_mod, "SessionLocal", lambda: session)
 
     results = sync_mod.run_full_sync([1, 22])
-    assert len(results) == 6
+    assert len(results) == 8
     by_key = {(item["game_id"], item["kind"]): item for item in results}
     assert by_key[(1, "catalog")]["ok"] is False
     assert by_key[(1, "expansions")]["ok"] is True
     assert by_key[(1, "prices")]["ok"] is True
+    assert by_key[(1, "images")]["ok"] is True
     assert by_key[(22, "catalog")]["ok"] is False
     assert by_key[(22, "expansions")]["ok"] is True
     assert by_key[(22, "prices")]["ok"] is True
-    assert session.query(SyncRun).count() == 6
+    assert by_key[(22, "images")]["ok"] is True
+    assert session.query(SyncRun).count() == 8

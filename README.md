@@ -18,6 +18,7 @@ El dueño de la tienda valida cada lista desde su panel cuando recibe las cartas
 - **Snapshot de precios**: cada línea guarda el precio y la fecha en que se calculó; si al validar varía más de un umbral configurable, la línea se marca para revisión.
 - **Estado y idioma**: todas las cartas se valoran como **NM** (casi perfecta). Cada línea permite elegir **foil** (usa `low-foil`) e **idioma** (español o inglés, informativo para la tienda).
 - **Oferta mínima**: si el precio `LOW` es inferior a **5 céntimos**, la oferta es **0 €** (cartas bulk).
+- **Imágenes de cartas**: la búsqueda y las listas muestran la imagen de cada carta (se descarga una vez y se cachea en disco); cuando una fuente no la tiene, se muestra un marcador de posición neutro.
 - **100% server-rendered** (FastAPI + Jinja2), sin frameworks de frontend, responsive.
 
 ## Configuración (`.env`)
@@ -100,12 +101,12 @@ app/
 ├── main.py          # FastAPI, sesiones, lifespan (sync diario), /health
 ├── config.py        # Configuración desde .env (pydantic-settings)
 ├── db.py            # SQLAlchemy 2 + SQLite WAL
-├── models.py        # Usuarios, catálogo, precios, listas, eventos
-├── routers/         # auth, cards (búsqueda), lists, admin
-├── services/        # cardmarket (S3), expansions (nombres de set), sync (scheduler), pricing
+├── models.py        # Usuarios, catálogo, precios, expansiones, imágenes, listas, eventos
+├── routers/         # auth, cards (búsqueda), images (/img), lists, admin
+├── services/        # cardmarket (S3), expansions, images (imágenes de cartas), sync (scheduler), pricing
 └── templates/       # Jinja2
-alembic/             # Migraciones (0001 users ... 0005 expansiones)
-tests/               # pytest (30 tests)
+alembic/             # Migraciones (0001 users ... 0006 card_images)
+tests/               # pytest (60 tests)
 ```
 
 ## Sincronización de precios
@@ -124,6 +125,15 @@ tests/               # pytest (30 tests)
 - Este proyecto **no hace scraping** de cardmarket.com (prohibido por sus términos y bloqueado técnicamente), ni usa su API oficial (cerrada a nuevas aplicaciones). Solo descarga los ficheros públicos de `downloads.s3.cardmarket.com`.
 - **Atribución**: "Precios: Cardmarket". Este proyecto no está afiliado a Cardmarket.
 
+## Imágenes de las cartas
+
+- Endpoint único `GET /img/{id_product}`; se usa en las listas y en el buscador (miniaturas en grid y en cada fila).
+- **Sincronizadas por lotes** (junto con el sync diario): Magic (índice de [Scryfall](https://scryfall.com) con `cardmarket_id` directo), One Piece y Riftbound (índice de [DotGG](https://dotgg.gg)). Cobertura actual: MTG 100.357, One Piece 3.583 y Riftbound 1.399 productos.
+- **Resueltas bajo demanda** en la primera petición de cada carta: Yu-Gi-Oh! ([YGOPRODeck](https://ygoprodeck.com), re-alojado según su política), Lorcana ([Lorcast](https://lorcast.com), nombre + set) y Pokémon ([Pokémon TCG API](https://pokemontcg.io), nombre + expansión).
+- **Caché en disco**: las imágenes se guardan en `data/images/` (volumen `./data` en Docker) y se sirven con caché HTTP de 7 días; los fallos se recuerdan 24 h para respetar los límites de las APIs (pokemontcg.io limita a 30 peticiones/min sin clave, y sus errores 500 son intermitentes — se reintenta automáticamente).
+- **Fallback**: si una fuente no tiene la imagen o no responde, se sirve un marcador de posición neutro (SVG) sin caché. Cuando no quedan resoluciones libres (8 simultáneas), se sirve un marcador **transitorio** y la siguiente petición (del cliente o de otro visitante) aprovechará el primer hueco para resolverla; el cliente reintenta sola con backoff hasta ~100 s, así que la imagen acaba apareciendo sin recargar la página.
+- **Atribución de imágenes**: Scryfall (fan content policy; enlazamos sus URLs de imagen), DotGG (One Piece DB / Riftbound DB), YGOPRODeck, Lorcast y Pokémon TCG API. Este proyecto no está afiliado a ninguno de ellos.
+
 ## Roadmap
 
 - [x] Fase 1: scaffold, Docker, CI
@@ -133,3 +143,4 @@ tests/               # pytest (30 tests)
 - [x] Fase 5: panel de administración
 - [x] Fase 6: tests y despliegue
 - [x] Fase 7: elección de impresión/expansión con precios por juego y sync completo de los 6 TCG
+- [x] Fase 8: imágenes de cartas en búsquedas y listas (Scryfall/DotGG + resolución bajo demanda con fallback)

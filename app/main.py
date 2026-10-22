@@ -8,7 +8,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import settings
-from app.routers import admin, auth, cards, lists
+from app.routers import admin, auth, cards, images, lists
 from app.security import get_optional_user
 from app.services.sync import initial_sync_if_stale, scheduler_loop
 
@@ -42,6 +42,7 @@ app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 
 app.include_router(auth.router)
 app.include_router(cards.router)
+app.include_router(images.router)
 app.include_router(lists.router)
 app.include_router(admin.router)
 
