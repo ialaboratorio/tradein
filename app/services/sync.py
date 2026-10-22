@@ -24,8 +24,8 @@ def run_full_sync(game_ids: list[int] | None = None) -> list[dict]:
         with SessionLocal() as db:
             for game_id in games:
                 jobs = (
-                    ("catalog", cardmarket.sync_game_catalog),
                     ("expansions", expansions.sync_game_expansions),
+                    ("catalog", cardmarket.sync_game_catalog),
                     ("prices", cardmarket.sync_game_prices),
                 )
                 if game_id in images.SYNC_IMAGE_SOURCES:

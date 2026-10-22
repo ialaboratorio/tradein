@@ -75,7 +75,8 @@ def test_full_draft_flow(client):
     assert page.status_code == 200
     assert "Lightning Bolt" in page.text
     assert "Español" in page.text
-    assert "10.00" in page.text
+    assert "LOW (mercado)" not in page.text
+    assert "10.00" not in page.text
     assert "7.00" in page.text
     assert "8.05" in page.text
     assert "14.00" in page.text
@@ -181,7 +182,7 @@ def test_low_under_five_cents_offers_zero(client, session):
     page = client.get(f"/listas/{list_id}")
     assert "Bulk Common" in page.text
     assert "0.00 €" in page.text
-    assert "0.03" in page.text
+    assert "0.03" not in page.text
 
     from app.models import TradeList
 

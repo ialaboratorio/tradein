@@ -13,11 +13,13 @@ El dueño de la tienda valida cada lista desde su panel cuando recibe las cartas
 - **Listas por TCG**: cada lista se crea para un juego concreto (Magic, Pokémon, Yu-Gi-Oh!, One Piece, Lorcana o Riftbound); la búsqueda de cartas se filtra automáticamente por ese juego.
 - **Panel de administración**: listas enviadas, detalle con precios, validación, rechazo con nota, ajuste por línea (override + motivo) y registro de pago (efectivo/tienda).
 - **Catálogo local de Cardmarket**: la app descarga a diario los ficheros oficiales gratuitos de [Cardmarket Downloads](https://downloads.s3.cardmarket.com/) para buscar cartas por nombre y conocer su precio `LOW` (oferta activa más barata).
-- **Elección de impresión**: la búsqueda muestra cada expansión/arte de la carta con su propio precio (`LOW` y `LOW foil`) y su referencia, de modo que el usuario elige exactamente la impresión que vende.
+- **Solo cartas sueltas**: el catálogo descarta productos que no son singles jugables (Art Series, tokens, emblemas y oversized), tanto al sincronizar como en la búsqueda.
+- **Elección de versión**: escribes el nombre y la búsqueda lista las distintas impresiones (expansión y variante) con una miniatura, sin precios ni referencias; eliges la que coincide con tu carta e indicas cantidad, foil e idioma.
 - **Listas por fases**: borrador → enviada → validada/rechazada → pagada, con auditoría de cada cambio.
 - **Snapshot de precios**: cada línea guarda el precio y la fecha en que se calculó; si al validar varía más de un umbral configurable, la línea se marca para revisión.
 - **Estado y idioma**: todas las cartas se valoran como **NM** (casi perfecta). Cada línea permite elegir **foil** (usa `low-foil`) e **idioma** (español o inglés, informativo para la tienda).
 - **Oferta mínima**: si el precio `LOW` es inferior a **5 céntimos**, la oferta es **0 €** (cartas bulk).
+- **Precios visibles según rol**: el usuario ve su oferta por carta y los totales; el `LOW` de mercado solo aparece en el panel de administración durante la validación.
 - **Imágenes de cartas**: la búsqueda y las listas muestran la imagen de cada carta (se descarga una vez y se cachea en disco); cuando una fuente no la tiene, se muestra un marcador de posición neutro.
 - **100% server-rendered** (FastAPI + Jinja2), sin frameworks de frontend, responsive.
 
@@ -106,7 +108,7 @@ app/
 ├── services/        # cardmarket (S3), expansions, images (imágenes de cartas), sync (scheduler), pricing
 └── templates/       # Jinja2
 alembic/             # Migraciones (0001 users ... 0006 card_images)
-tests/               # pytest (60 tests)
+tests/               # pytest (62 tests)
 ```
 
 ## Sincronización de precios
@@ -119,7 +121,8 @@ tests/               # pytest (60 tests)
 
 - Fuente de precios: ficheros oficiales y gratuitos de Cardmarket (`price_guide` y `products_singles`), actualizados una vez al día (~02:45 CET). La app sincroniza a las 03:30.
 - El campo `LOW` es la oferta activa más barata (mezcla idiomas y condiciones); el precio final de compra lo decide la tienda al validar en persona.
-- Cada **impresión** (expansión/arte/variante) es un producto distinto en Cardmarket y tiene su propio `LOW`: por eso la búsqueda permite elegir la impresión con su precio.
+- Cada **impresión** (expansión/arte/variante) es un producto distinto en Cardmarket y tiene su propio `LOW`: por eso la búsqueda lista todas las versiones para que el usuario elija la suya.
+- **Filtro de singles**: se descartan los productos que no son cartas sueltas: nombres que empiezan por `Art Series:`, tokens (nombres acabados en `Token` o `Token (...)`; se conservan cartas reales como *Token Collector*), oversized y emblemas (salvo cartas reales como *Leering Emblem*); también los de expansiones de tokens/art series.
 - **Nombres de expansión**: Cardmarket no publica un listado de expansiones, así que los nombres se derivan de los ficheros oficiales `products_nonsingles` (productos tipo *booster* de cada set); en Magic se completa con [MTGJSON](https://mtgjson.com). Las expansiones sin nombre disponible se muestran como `Set #id` (cobertura actual de cartas con nombre: MTG 68%, Yu-Gi-Oh! 80%, Pokémon 72%, One Piece 86%, Lorcana 94%, Riftbound 97%).
 - **Límite del idioma**: Cardmarket no publica precios por idioma dentro de una misma impresión (solo existe LOW por producto); para esos casos la tienda puede ajustar el precio manualmente desde el panel de administración.
 - Este proyecto **no hace scraping** de cardmarket.com (prohibido por sus términos y bloqueado técnicamente), ni usa su API oficial (cerrada a nuevas aplicaciones). Solo descarga los ficheros públicos de `downloads.s3.cardmarket.com`.
@@ -128,7 +131,7 @@ tests/               # pytest (60 tests)
 ## Imágenes de las cartas
 
 - Endpoint único `GET /img/{id_product}`; se usa en las listas y en el buscador (miniaturas en grid y en cada fila).
-- **Sincronizadas por lotes** (junto con el sync diario): Magic (índice de [Scryfall](https://scryfall.com) con `cardmarket_id` directo), One Piece y Riftbound (índice de [DotGG](https://dotgg.gg)). Cobertura actual: MTG 100.357, One Piece 3.583 y Riftbound 1.399 productos.
+- **Sincronizadas por lotes** (junto con el sync diario): Magic (índice de [Scryfall](https://scryfall.com) con `cardmarket_id` directo), One Piece y Riftbound (índice de [DotGG](https://dotgg.gg)). Cobertura actual: MTG 98.713, One Piece 3.583 y Riftbound 1.399 productos.
 - **Resueltas bajo demanda** en la primera petición de cada carta: Yu-Gi-Oh! ([YGOPRODeck](https://ygoprodeck.com), re-alojado según su política), Lorcana ([Lorcast](https://lorcast.com), nombre + set) y Pokémon ([Pokémon TCG API](https://pokemontcg.io), nombre + expansión).
 - **Caché en disco**: las imágenes se guardan en `data/images/` (volumen `./data` en Docker) y se sirven con caché HTTP de 7 días; los fallos se recuerdan 24 h para respetar los límites de las APIs (pokemontcg.io limita a 30 peticiones/min sin clave, y sus errores 500 son intermitentes — se reintenta automáticamente).
 - **Fallback**: si una fuente no tiene la imagen o no responde, se sirve un marcador de posición neutro (SVG) sin caché. Cuando no quedan resoluciones libres (8 simultáneas), se sirve un marcador **transitorio** y la siguiente petición (del cliente o de otro visitante) aprovechará el primer hueco para resolverla; el cliente reintenta sola con backoff hasta ~100 s, así que la imagen acaba apareciendo sin recargar la página.

@@ -195,6 +195,16 @@ input[type="text"], input[type="number"], select, textarea {
 
 .search-item:hover { background: var(--panel); }
 
+.search-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.search-name { font-weight: 600; }
+
+.search-meta { color: var(--muted); font-size: 0.85em; }
+
 .card-thumb {
   width: 36px;
   height: 50px;

@@ -109,6 +109,8 @@ def test_validate_adjust_pay_flow(client, session):
     assert refreshed.override_reason == "borde rayado"
 
     page = client.get(f"/admin/listas/{trade_list.id}")
+    assert "LOW (mercado)" in page.text
+    assert "10.00" in page.text
     assert "3.50" in page.text
     assert "borde rayado" in page.text
 

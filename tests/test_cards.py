@@ -8,7 +8,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.db import Base, get_db
 from app.main import app
-from app.models import Card, CardPrice
+from app.models import Card, CardPrice, Expansion
 from app.services.cardmarket import sync_game_catalog, sync_game_prices
 
 PRODUCTS_FIXTURE = {
@@ -90,7 +90,6 @@ def test_sync_catalog_and_prices_idempotent(session):
 
 
 def test_search_cards_endpoint(session):
-    from app.models import Expansion
 
     session.add(Card(game_id=1, id_product=101, name="Lightning Bolt", id_expansion=209))
     session.add(CardPrice(game_id=1, id_product=101, low=0.45, low_foil=1.2))
@@ -124,3 +123,93 @@ def test_search_cards_endpoint(session):
             assert no_price["set_label"] == "Set #210"
     finally:
         app.dependency_overrides.clear()
+
+
+def test_search_excludes_non_singles(session):
+    session.add(Expansion(game_id=1, id_expansion=2484, name="Modern Horizons: Art Series"))
+    session.add(Expansion(game_id=1, id_expansion=777, name="GameON Tokens"))
+    session.add(Card(game_id=1, id_product=201, name="Art Series: Chillerpillar", id_expansion=2484))
+    session.add(Card(game_id=1, id_product=202, name="Goblin Token (Red 1/1)", id_expansion=209))
+    session.add(
+        Card(game_id=1, id_product=203, name="Sorin, Lord of Innistrad Emblem", id_expansion=209)
+    )
+    session.add(Card(game_id=1, id_product=204, name="Emblem of the Warmind", id_expansion=209))
+    session.add(Card(game_id=1, id_product=205, name="Sheep Token", id_expansion=209))
+    session.add(Card(game_id=1, id_product=206, name="Fancy Promo", id_expansion=777))
+    session.add(Card(game_id=1, id_product=207, name="Pikachu V-UNION [Oversized]", id_expansion=6))
+    session.add(Card(game_id=1, id_product=208, name="Leering Emblem", id_expansion=209))
+    session.add(Card(game_id=3, id_product=301, name="Token Collector", id_expansion=1))
+    session.add(Card(game_id=3, id_product=302, name="Token Thanksgiving", id_expansion=1))
+    session.add(Card(game_id=3, id_product=303, name="Sheep Token", id_expansion=2))
+    session.add(Card(game_id=3, id_product=304, name="Token (Dragon)", id_expansion=2))
+    session.add(Card(game_id=3, id_product=305, name="BEYOND THE BRAVE (OCG Token)", id_expansion=2))
+    session.add(Card(game_id=1, id_product=209, name="Lonely Card", id_expansion=None))
+    session.commit()
+
+    def override_get_db():
+        yield session
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        from fastapi.testclient import TestClient
+
+        with TestClient(app) as client:
+            assert client.get("/api/cards/search", params={"q": "chiller"}).json() == []
+            assert [row["name"] for row in client.get("/api/cards/search", params={"q": "token"}).json()] == [
+                "Token Collector",
+                "Token Thanksgiving",
+            ]
+            assert client.get("/api/cards/search", params={"q": "fancy"}).json() == []
+            assert client.get("/api/cards/search", params={"q": "beyond"}).json() == []
+            assert client.get("/api/cards/search", params={"q": "v-union"}).json() == []
+
+            emblems = client.get("/api/cards/search", params={"q": "emblem"}).json()
+            assert [row["name"] for row in emblems] == ["Emblem of the Warmind", "Leering Emblem"]
+
+            assert [row["name"] for row in client.get("/api/cards/search", params={"q": "lonely"}).json()] == [
+                "Lonely Card"
+            ]
+            assert client.get("/api/cards/search", params={"q": "  "}).json() == []
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_sync_catalog_skips_and_cleans_non_singles(session):
+    from app.services.cardmarket import PRICE_GUIDE_URL, PRODUCT_LIST_URL
+
+    products = {
+        "version": 1,
+        "createdAt": "2026-10-21T02:45:00+0200",
+        "products": [
+            {"idProduct": 101, "name": "Lightning Bolt", "idExpansion": 209},
+            {"idProduct": 202, "name": "Goblin Token (Red 1/1)", "idExpansion": 209},
+            {"idProduct": 203, "name": "Pretty Art", "idExpansion": 300},
+            {"idProduct": 204, "name": "Sorin, Lord of Innistrad Emblem", "idExpansion": 209},
+            {"idProduct": 205, "name": "Emblem of the Warmind", "idExpansion": 209},
+            {"idProduct": 206, "name": "Token Collector", "idExpansion": 209},
+        ],
+    }
+    prices = {
+        "version": 1,
+        "createdAt": "2026-10-21T02:45:00+0200",
+        "priceGuides": [
+            {"idProduct": 101, "low": 0.45},
+            {"idProduct": 202, "low": 0.10},
+        ],
+    }
+    session.add(Expansion(game_id=1, id_expansion=300, name="Promo: Art Series"))
+    session.add(Card(game_id=1, id_product=301, name="Old Zombie Token", id_expansion=209))
+    session.commit()
+
+    urls = {
+        PRODUCT_LIST_URL.format(game=1).replace("https://downloads.s3.cardmarket.com", ""): products,
+        PRICE_GUIDE_URL.format(game=1).replace("https://downloads.s3.cardmarket.com", ""): prices,
+    }
+    with _mock_client(urls) as client:
+        added = sync_game_catalog(client, session, 1)
+        sync_game_prices(client, session, 1)
+    assert added == 3
+
+    ids = {card.id_product for card in session.query(Card).all()}
+    assert ids == {101, 205, 206}
+    assert {price.id_product for price in session.query(CardPrice).all()} == {101}

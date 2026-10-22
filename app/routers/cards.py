@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import and_, select
+from sqlalchemy import and_, case, func, not_, select
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.models import GAME_NAMES, Card, CardPrice
+from app.models import GAME_NAMES, Card, CardPrice, Expansion
 from app.services.expansions import expansion_names, set_label
+from app.services.singles import exclusion_condition
 
 router = APIRouter(prefix="/api/cards", tags=["cards"])
 
@@ -16,7 +17,15 @@ def search_cards(
     db: Session = Depends(get_db),
 ):
     term = q.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    if not term:
+        return []
     pattern = f"%{term}%"
+    name_low = func.lower(Card.name)
+    priority = case(
+        (name_low == q.strip().lower(), 0),
+        (name_low.like(f"{term.lower()}%", escape="\\"), 1),
+        else_=2,
+    )
     stmt = (
         select(Card, CardPrice)
         .join(
@@ -27,9 +36,22 @@ def search_cards(
             ),
             isouter=True,
         )
-        .where(Card.name.ilike(pattern, escape="\\"))
-        .order_by(Card.name, Card.id_product)
-        .limit(25)
+        .outerjoin(
+            Expansion,
+            and_(
+                Expansion.game_id == Card.game_id,
+                Expansion.id_expansion == Card.id_expansion,
+            ),
+        )
+        .where(Card.name.ilike(pattern, escape="\\"), not_(exclusion_condition(db, game)))
+        .order_by(
+            priority,
+            Card.name,
+            case((Expansion.name.is_(None), 1), else_=0),
+            Expansion.name,
+            Card.id_product,
+        )
+        .limit(100)
     )
     if game is not None:
         stmt = stmt.where(Card.game_id == game)

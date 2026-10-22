@@ -27,27 +27,15 @@
     return img;
   }
 
-  function searchLabel(item) {
-    const parts = [item.name];
-    if (item.set_label) parts.push(item.set_label);
-    parts.push("LOW " + (item.low != null ? item.low.toFixed(2) + " €" : "—"));
-    if (item.low_foil != null) parts.push("Foil " + item.low_foil.toFixed(2) + " €");
-    parts.push("ref " + item.id_product);
-    return parts.join(" · ");
+  function cardMeta(item) {
+    if (item.set_label) return item.set_label;
+    return item.id_expansion != null ? "Set #" + item.id_expansion : "Sin set";
   }
 
   function selectCard(item) {
     productInput.value = item.id_product;
-    const parts = [item.name];
-    if (item.set_label) parts.push(item.set_label);
-    if (item.low != null) parts.push("LOW " + item.low.toFixed(2) + " €");
-    else if (item.low_foil != null) parts.push("LOW foil " + item.low_foil.toFixed(2) + " €");
-    else parts.push("sin precio");
-    if (item.low != null && item.low_foil != null)
-      parts.push("Foil " + item.low_foil.toFixed(2) + " €");
-    parts.push("ref " + item.id_product);
     const label = document.createElement("span");
-    label.textContent = parts.join(" · ");
+    label.textContent = item.name + " · " + cardMeta(item);
     selected.replaceChildren(thumb(item.id_product, "card-thumb-lg"), label);
     selected.classList.remove("muted");
     search.value = "";
@@ -77,10 +65,17 @@
         data.forEach(function (item) {
           const div = document.createElement("div");
           div.className = "search-item";
-          const label = document.createElement("span");
-          label.textContent = searchLabel(item);
+          const info = document.createElement("div");
+          info.className = "search-info";
+          const name = document.createElement("span");
+          name.className = "search-name";
+          name.textContent = item.name;
+          const meta = document.createElement("span");
+          meta.className = "search-meta";
+          meta.textContent = cardMeta(item);
+          info.append(name, meta);
           div.appendChild(thumb(item.id_product));
-          div.appendChild(label);
+          div.appendChild(info);
           div.addEventListener("click", function () {
             selectCard(item);
           });

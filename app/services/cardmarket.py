@@ -2,10 +2,11 @@ import tempfile
 
 import httpx
 import ijson
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from app.models import Card, CardPrice, utcnow
+from app.models import Card, CardImage, CardPrice, Expansion, utcnow
+from app.services import singles
 
 PRICE_GUIDE_URL = "https://downloads.s3.cardmarket.com/productCatalog/priceGuide/price_guide_{game}.json"
 PRODUCT_LIST_URL = "https://downloads.s3.cardmarket.com/productCatalog/productList/products_singles_{game}.json"
@@ -45,6 +46,11 @@ def sync_game_catalog(client: httpx.Client, db: Session, game_id: int) -> int:
         card.id_product: card
         for card in db.scalars(select(Card).where(Card.game_id == game_id))
     }
+    expansion_names = dict(
+        db.execute(
+            select(Expansion.id_expansion, Expansion.name).where(Expansion.game_id == game_id)
+        ).all()
+    )
     added = 0
     for item in items:
         id_product = _i(item.get("idProduct"))
@@ -52,6 +58,10 @@ def sync_game_catalog(client: httpx.Client, db: Session, game_id: int) -> int:
             continue
         name = item.get("name") or ""
         id_expansion = _i(item.get("idExpansion"))
+        if singles.excluded_name(name) or singles.excluded_expansion_name(
+            expansion_names.get(id_expansion)
+        ):
+            continue
         category_name = str(item.get("categoryName") or "")[:128] or None
         card = existing.get(id_product)
         if card is None:
@@ -69,6 +79,9 @@ def sync_game_catalog(client: httpx.Client, db: Session, game_id: int) -> int:
             card.name = name
             card.id_expansion = id_expansion
             card.category_name = category_name
+    db.execute(
+        delete(Card).where(Card.game_id == game_id, singles.exclusion_condition(db, game_id))
+    )
     db.commit()
     return added
 
@@ -102,5 +115,13 @@ def sync_game_prices(client: httpx.Client, db: Session, game_id: int) -> int:
         updated += 1
         if updated % 2000 == 0:
             db.flush()
+    card_ids = select(Card.id_product).where(Card.game_id == game_id)
+    db.flush()
+    db.execute(
+        delete(CardPrice).where(CardPrice.game_id == game_id, CardPrice.id_product.not_in(card_ids))
+    )
+    db.execute(
+        delete(CardImage).where(CardImage.game_id == game_id, CardImage.id_product.not_in(card_ids))
+    )
     db.commit()
     return updated
