@@ -6,6 +6,8 @@ import re
 import tempfile
 import threading
 import time
+import unicodedata
+from collections import defaultdict
 from datetime import timedelta
 from pathlib import Path
 from urllib.parse import urljoin, urlsplit
@@ -29,11 +31,16 @@ YGO_CARDINFO_URL = "https://db.ygoprodeck.com/api/v7/cardinfo.php"
 LORCAST_SETS_URL = "https://api.lorcast.com/v0/sets"
 LORCAST_SEARCH_URL = "https://api.lorcast.com/v0/cards/search"
 POKEMON_CARDS_URL = "https://api.pokemontcg.io/v2/cards"
+POKEMON_SETS_URL = "https://api.pokemontcg.io/v2/sets"
 
 USER_AGENT = {"User-Agent": "tradein/1.0"}
 
-SYNC_IMAGE_SOURCES = {1: "scryfall", 18: "dotgg", 22: "dotgg"}
+SYNC_IMAGE_SOURCES = {1: "scryfall", 6: "pokemon", 18: "dotgg", 22: "dotgg", 24: "dotgg"}
 ONDEMAND_SOURCES = {3: "ygoprodeck", 19: "lorcast", 6: "pokemontcg"}
+
+DOTGG_GAMES = {18: "onepiece", 22: "riftbound", 24: "gundam"}
+
+_CARD_CODE_RE = re.compile(r"\(([A-Z0-9]{1,5}-[0-9]{1,4})\)")
 
 REFRESH_HOURS = 168
 FAIL_COOLDOWN = timedelta(hours=24)
@@ -92,6 +99,10 @@ _LOCAL_PATH_RE = re.compile(r"^[0-9]{1,12}\.[a-z0-9]{2,5}$")
 _LORCAST_SETS_CACHE: dict[str, str] = {}
 _LORCAST_SETS_AT = 0.0
 _LORCAST_SETS_LOCK = threading.Lock()
+
+_POKEMON_SETS_CACHE: dict[str, str] = {}
+_POKEMON_SETS_AT = 0.0
+_POKEMON_SETS_LOCK = threading.Lock()
 
 
 def _placeholder() -> tuple[bytes, str, str]:
@@ -209,30 +220,149 @@ def _fetch_scryfall_index(client: httpx.Client, db: Session) -> dict[int, str]:
     return index
 
 
+def _norm_token(value: str) -> str:
+    value = unicodedata.normalize("NFKD", value or "").encode("ascii", "ignore").decode()
+    value = value.replace("&", " and ").casefold()
+    return re.sub(r"[^a-z0-9]+", " ", value).strip()
+
+
+def _set_alias(value: str) -> str:
+    key = _norm_token(value)
+    for suffix in (
+        " jp",
+        " fr",
+        " id th",
+        " id/th",
+        " simplified chinese",
+        " indonesian and thai",
+        " non english",
+    ):
+        if key.endswith(suffix):
+            key = key[: -len(suffix)].strip()
+    if key.startswith("ex "):
+        key = key[3:]
+    if key.startswith("hs "):
+        key = key[3:]
+    if key == "base set":
+        key = "base"
+    return key
+
+
+def _dotgg_image_url(game_id: int, record: dict) -> str | None:
+    if game_id in (22, 24):
+        return record.get("image")
+    pid = str(record.get("id_normal") or record.get("id") or "")
+    prefix = pid.split("-", 1)[0] if pid else ""
+    return f"https://images.onepiecedb.io/images/{prefix}/{pid}.png" if prefix else None
+
+
 def _fetch_dotgg_index(client: httpx.Client, db: Session, game_id: int) -> dict[int, str]:
-    game = "onepiece" if game_id == 18 else "riftbound"
+    game = DOTGG_GAMES.get(game_id)
+    if game is None:
+        return {}
     resp = client.get(DOTGG_URL.format(game=game), timeout=120)
     resp.raise_for_status()
-    wanted = set(db.scalars(select(Card.id_product).where(Card.game_id == game_id)))
+    wanted = dict(
+        db.execute(
+            select(Card.id_product, Card.name).where(Card.game_id == game_id)
+        ).all()
+    )
     index: dict[int, str] = {}
+    code_records: dict[str, list[tuple[int, str]]] = defaultdict(list)
     for record in resp.json():
+        url = _dotgg_image_url(game_id, record)
         cmid = record.get("cmid")
-        if cmid is None:
+        if url and cmid is not None:
+            try:
+                cmid_int = int(cmid)
+            except (TypeError, ValueError):
+                cmid_int = None
+            if cmid_int in wanted:
+                index[cmid_int] = url
+        if game_id not in (18, 24) or not url:
             continue
-        if game_id == 22:
-            url = record.get("image")
+        pid = str(record.get("id_normal") or record.get("id") or "")
+        code = re.sub(r"_p\d+$", "", pid)
+        if not code:
+            continue
+        suffix = pid[len(code):]
+        order = int(suffix[2:]) if suffix.startswith("_p") and suffix[2:].isdigit() else 0
+        code_records[code].append((order, url))
+    if game_id not in (18, 24):
+        return index
+    code_ids: dict[str, list[int]] = defaultdict(list)
+    for id_product, name in wanted.items():
+        match = _CARD_CODE_RE.search(name or "")
+        if match:
+            code_ids[match.group(1)].append(id_product)
+    for code, id_products in code_ids.items():
+        variants = [url for _, url in sorted(code_records.get(code) or [], key=lambda item: item[0])]
+        urls = list(dict.fromkeys(variants))
+        if not urls:
+            continue
+        candidates = [pid for pid in sorted(id_products) if pid not in index]
+        if not candidates:
+            continue
+        if game_id == 18:
+            for position, id_product in enumerate(candidates):
+                index[id_product] = urls[position] if position < len(urls) else urls[0]
         else:
-            pid = str(record.get("id") or "")
-            prefix = pid.split("-")[0] if pid else ""
-            url = f"https://images.onepiecedb.io/images/{prefix}/{pid}.png" if prefix else None
-        if not url:
+            index[candidates[0]] = urls[0]
+    return index
+
+
+def _pokemon_sets(client: httpx.Client) -> dict[str, str]:
+    global _POKEMON_SETS_AT
+    with _POKEMON_SETS_LOCK:
+        if _POKEMON_SETS_CACHE and time.monotonic() - _POKEMON_SETS_AT < 86400:
+            return _POKEMON_SETS_CACHE
+        resp = client.get(POKEMON_SETS_URL, timeout=120)
+        resp.raise_for_status()
+        mapping: dict[str, str] = {}
+        for item in resp.json().get("data") or []:
+            set_id = item.get("id")
+            if not set_id:
+                continue
+            mapping.setdefault(_set_alias(item.get("name") or ""), set_id)
+            if item.get("ptcgoCode"):
+                mapping.setdefault(_set_alias(item["ptcgoCode"]), set_id)
+        _POKEMON_SETS_CACHE.clear()
+        _POKEMON_SETS_CACHE.update(mapping)
+        _POKEMON_SETS_AT = time.monotonic()
+        return _POKEMON_SETS_CACHE
+
+
+def _fetch_pokemon_index(client: httpx.Client, db: Session) -> dict[int, str]:
+    resp = client.get(DOTGG_URL.format(game="pokemon"), timeout=180)
+    resp.raise_for_status()
+    sets = _pokemon_sets(client)
+    expansion_sets: dict[int, str] = {}
+    for id_expansion, name in db.execute(
+        select(Expansion.id_expansion, Expansion.name).where(Expansion.game_id == 6)
+    ).all():
+        set_id = sets.get(_set_alias(name or ""))
+        if set_id:
+            expansion_sets[id_expansion] = set_id
+    by_name: dict[tuple[str, str], str] = {}
+    for record in resp.json():
+        set_id = record.get("setId")
+        number = record.get("number")
+        if not set_id or not number:
             continue
-        try:
-            cmid_int = int(cmid)
-        except (TypeError, ValueError):
+        base = _norm_token(_pokemon_base_name(record.get("name") or ""))
+        by_name.setdefault(
+            (set_id, base), f"https://images.pokemontcg.io/{set_id}/{number}.png"
+        )
+    index: dict[int, str] = {}
+    for id_product, name, id_expansion in db.execute(
+        select(Card.id_product, Card.name, Card.id_expansion).where(Card.game_id == 6)
+    ):
+        set_id = expansion_sets.get(id_expansion)
+        if set_id is None:
             continue
-        if cmid_int in wanted:
-            index[cmid_int] = url
+        url = by_name.get((set_id, _norm_token(_pokemon_base_name(name or ""))))
+        if url:
+            index[id_product] = url
     return index
 
 
@@ -243,6 +373,8 @@ def _fetch_index(client: httpx.Client, db: Session, game_id: int, source: str) -
                 return _fetch_scryfall_index(client, db)
             if source == "dotgg":
                 return _fetch_dotgg_index(client, db, game_id)
+            if source == "pokemon":
+                return _fetch_pokemon_index(client, db)
             raise ValueError(f"fuente desconocida: {source}")
         except (ValueError, httpx.HTTPError, RuntimeError) as exc:
             if isinstance(exc, ValueError) and "fuente desconocida" in str(exc):
@@ -414,7 +546,9 @@ def _resolve_lorcana(card: Card, expansion_name: str | None) -> str | None:
 
 
 def _pokemon_base_name(name: str) -> str:
-    return name.split("[", 1)[0].strip().replace('""', '"')
+    base = name.split("[", 1)[0].strip().replace('""', '"')
+    base = re.sub(r"\s+Lv\.?\s*\d+$", "", base, flags=re.IGNORECASE)
+    return re.sub(r"\s*\([^()]*\)$", "", base).strip()
 
 
 def _resolve_pokemon(card: Card, expansion_name: str | None) -> str | None:
@@ -434,12 +568,12 @@ def _resolve_pokemon(card: Card, expansion_name: str | None) -> str | None:
     except ValueError:
         return None
     name_cf = base.casefold()
-    exp_cf = (expansion_name or "").strip().casefold()
+    exp_key = _set_alias(expansion_name or "")
     for item in data:
         if (item.get("name") or "").strip().casefold() != name_cf:
             continue
-        set_name = str((item.get("set") or {}).get("name") or "").strip().casefold()
-        if exp_cf and set_name != exp_cf:
+        set_name = str((item.get("set") or {}).get("name") or "")
+        if exp_key and _set_alias(set_name) != exp_key:
             continue
         images = item.get("images") or {}
         url = images.get("large") or images.get("small")

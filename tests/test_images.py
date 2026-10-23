@@ -159,6 +159,71 @@ def test_sync_dotgg_indexes(session):
     assert row.source == "dotgg"
 
 
+def test_sync_dotgg_matches_cards_without_cmid_by_code(session):
+    session.add(Card(game_id=24, id_product=1001, name="Gundam (GD01-001)"))
+    session.add(Card(game_id=24, id_product=1002, name="Gundam (GD01-001)"))
+    session.add(Card(game_id=24, id_product=1003, name="Sin codigo"))
+    session.commit()
+
+    records = [
+        {"id": "GD01-001", "image": "https://static.dotgg.gg/gundam/card/GD01-001.webp"},
+        {"id": "GD01-001_p1", "image": "https://static.dotgg.gg/gundam/card/GD01-001_p1.webp"},
+        {"id": "GD01-002", "image": "https://static.dotgg.gg/gundam/card/GD01-002.webp"},
+    ]
+
+    client = httpx.Client(transport=_mock_transport(lambda request: httpx.Response(200, json=records)))
+    assert images_mod.sync_game_images(client, session, 24) == 1
+    rows = {row.id_product: row for row in session.query(CardImage).all()}
+    assert rows[1001].source_url == "https://static.dotgg.gg/gundam/card/GD01-001.webp"
+    assert 1002 not in rows
+    assert 1003 not in rows
+
+
+def test_sync_dotgg_onepiece_uses_base_image_for_variants(session):
+    session.add(Card(game_id=18, id_product=2001, name="Zoro (OP01-001)"))
+    session.add(Card(game_id=18, id_product=2002, name="Zoro (OP01-001)"))
+    session.commit()
+
+    records = [
+        {"id": "OP01-001", "id_normal": "OP01-001"},
+        {"id": "OP01-001_p1", "id_normal": "OP01-001"},
+    ]
+
+    client = httpx.Client(transport=_mock_transport(lambda request: httpx.Response(200, json=records)))
+    assert images_mod.sync_game_images(client, session, 18) == 2
+    rows = {row.id_product: row for row in session.query(CardImage).all()}
+    expected = "https://images.onepiecedb.io/images/OP01/OP01-001.png"
+    assert rows[2001].source_url == expected
+    assert rows[2002].source_url == expected
+
+
+def test_sync_pokemon_index_matches_set_alias_and_base_name(session, monkeypatch):
+    session.add(Expansion(game_id=6, id_expansion=77, name="EX Ruby & Sapphire"))
+    session.add(Expansion(game_id=6, id_expansion=78, name="Set japones"))
+    session.add(Card(game_id=6, id_product=3001, name="Weedle [Multiply]", id_expansion=77))
+    session.add(Card(game_id=6, id_product=3002, name="Weedle Lv.32 [Multiply]", id_expansion=77))
+    session.add(Card(game_id=6, id_product=3003, name="Weedle [Multiply]", id_expansion=78))
+    session.commit()
+
+    monkeypatch.setattr(images_mod, "_POKEMON_SETS_CACHE", {"ruby and sapphire": "ex1"})
+    monkeypatch.setattr(images_mod, "_POKEMON_SETS_AT", images_mod.time.monotonic())
+
+    records = [{"setId": "ex1", "number": "71", "name": "Weedle"}]
+
+    def handler(request):
+        if "getcards" in str(request.url):
+            return httpx.Response(200, json=records)
+        return httpx.Response(200, json={"data": []})
+
+    client = httpx.Client(transport=_mock_transport(handler))
+    assert images_mod.sync_game_images(client, session, 6) == 2
+    rows = {row.id_product: row for row in session.query(CardImage).all()}
+    expected = "https://images.pokemontcg.io/ex1/71.png"
+    assert rows[3001].source_url == expected
+    assert rows[3002].source_url == expected
+    assert 3003 not in rows
+
+
 def test_get_image_downloads_then_serves_from_disk(session, monkeypatch):
     session.add(
         CardImage(
