@@ -6,7 +6,7 @@ DB_PATH="${LITESTREAM_DB_PATH:-/app/data/tradein.db}"
 PORT="${PORT:-8000}"
 
 if [ -n "${LITESTREAM_REPLICA_URL:-}" ]; then
-    litestream restore -if-db-not-exists -if-replica-exists -replica "$LITESTREAM_REPLICA_URL" "$DB_PATH"
+    litestream restore -if-db-not-exists -if-replica-exists -o "$DB_PATH" "$LITESTREAM_REPLICA_URL"
 
     if [ ! -f "$DB_PATH" ] && [ -n "${SEED_BUCKET:-}" ]; then
         SEED_BUCKET="$SEED_BUCKET" DB_PATH="$DB_PATH" python - <<'PY'
@@ -37,7 +37,7 @@ PY
     fi
 
     alembic upgrade head
-    exec litestream replicate -exec "uvicorn app.main:app --host 0.0.0.0 --port $PORT" -replica "$LITESTREAM_REPLICA_URL" "$DB_PATH"
+    exec litestream replicate -exec "uvicorn app.main:app --host 0.0.0.0 --port $PORT" "$DB_PATH" "$LITESTREAM_REPLICA_URL"
 fi
 
 alembic upgrade head
