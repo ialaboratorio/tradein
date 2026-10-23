@@ -97,6 +97,34 @@ docker compose up -d --build
 - Los datos (SQLite) se persisten en `./data`.
 - `restart: unless-stopped`. Imagen publicada en `ghcr.io/ialaboratorio/tradein:latest`.
 
+### Publicarla sin abrir puertos (Raspberry Pi + Tailscale Funnel)
+
+Ideal para una Pi o cualquier equipo Linux siempre encendido detrás de una conexión doméstica:
+
+```bash
+# 1. Docker
+curl -fsSL https://get.docker.com | sh
+
+# 2. Tailscale y Funnel (login con la misma cuenta del tailnet)
+curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscale up
+sudo tailscale funnel --bg 8002
+
+# 3. La app
+git clone https://github.com/ialaboratorio/tradein.git
+cd tradein
+cp .env.example .env      # rellenar SECRET_KEY, Google y PUBLIC_BASE_URL
+docker compose pull && docker compose up -d
+```
+
+- En el panel de Tailscale activa **MagicDNS**, **HTTPS Certificates** y **Funnel**.
+- La URL pública es `https://<nombre-del-equipo>.<tailnet>.ts.net`; ponla en `PUBLIC_BASE_URL` y añádela a las *Authorized redirect URIs* de Google: `https://<nombre>.<tailnet>.ts.net/auth/google/callback`.
+- `SESSION_HTTPS_ONLY=true` para que la cookie viaje solo por HTTPS.
+
+### Opción serverless (Cloud Run + Litestream)
+
+La imagen incluye Litestream: si defines `LITESTREAM_REPLICA_URL` (ej. `gcs://bucket/tradein.db`), al arrancar restaura la base de datos de la réplica y la replica en caliente. `SEED_BUCKET` permite sembrar una base existente la primera vez. En Cloud Run usa `min-instances=0`, `max-instances=1` y monta un bucket GCS en `/app/data/images`.
+
 ## Estructura
 
 ```
